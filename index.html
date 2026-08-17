@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>團練結算與公會管理系統</title>
+
+    <!-- Firebase SDK (雲端即時同步核心) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
     <style>
         :root {
             --bg-primary: #0a0c10;
@@ -35,8 +40,30 @@
             color: var(--accent-gold);
             font-size: 24px;
             letter-spacing: 1px;
-            margin-bottom: 16px;
+            margin-bottom: 6px;
             text-shadow: 0 0 12px rgba(245, 158, 11, 0.2);
+        }
+
+        .sync-status-bar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            margin-bottom: 16px;
+            color: var(--text-muted);
+            flex-wrap: wrap;
+        }
+
+        .sync-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
         }
 
         .tab-group {
@@ -260,6 +287,7 @@
             display: flex;
             align-items: center;
             gap: 8px;
+            flex-wrap: wrap;
         }
 
         .member-seq {
@@ -330,6 +358,7 @@
             white-space: nowrap;
             min-width: 75px;
             text-align: right;
+            margin-left: auto;
         }
 
         .item-subtotal {
@@ -435,7 +464,7 @@
             display: none;
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.85);
             z-index: 1000;
             align-items: center;
             justify-content: center;
@@ -469,6 +498,7 @@
             padding: 8px 2px;
             border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
             gap: 6px;
+            flex-wrap: wrap;
         }
 
         .edit-member-row-item:last-child {
@@ -528,19 +558,22 @@
 
     <h2>⚔️ 團練結算與公會管理系統</h2>
 
+    <!-- 頂部即時連線燈號 -->
+    <div class="sync-status-bar">
+        <span id="cloudStatusBadge" class="sync-badge">🟢 雲端同步就緒</span>
+    </div>
+
     <!-- 切換 Tab -->
     <div class="tab-group">
         <button class="tab-btn active" onclick="switchTab('tab-settlement')">⚡ 即時結算與歷史管理</button>
         <button class="tab-btn" onclick="switchTab('tab-supplies')">📦 物資與公積金投資</button>
     </div>
 
-    <!-- 自動完成品項 datalist -->
     <datalist id="commonItemsDatalist"></datalist>
 
     <!-- 分頁一：即時結算與歷史管理 -->
     <div id="tab-settlement" class="tab-content active">
         <div class="two-column-layout">
-            <!-- 左欄：即時結算操作區 -->
             <div>
                 <div class="card">
                     <div class="row">
@@ -619,9 +652,7 @@
                 </div>
             </div>
 
-            <!-- 右欄：歷史紀錄與公積金總覽 -->
             <div>
-                <!-- 公積金可用總額儀表板 (四細項分流) -->
                 <div class="fund-dashboard">
                     <div class="fund-dashboard-title">🏛️ 公積金可用總額</div>
                     <div class="fund-dashboard-amount" id="historyTabMainFundDisplay">$0</div>
@@ -646,7 +677,6 @@
                     </div>
                 </div>
 
-                <!-- 跨場次未領款統計儀表板 -->
                 <div class="pending-summary-card">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                         <h3 style="margin: 0; color: var(--accent-green); font-size: 15px;">⏳ 尚未領款成員統計</h3>
@@ -668,7 +698,6 @@
 
     <!-- 分頁二：物資與公積金投資 -->
     <div id="tab-supplies" class="tab-content">
-        <!-- 儀表板 (四細項分流) -->
         <div class="fund-dashboard">
             <div class="fund-dashboard-title">🏛️ 公積金可用總額</div>
             <div class="fund-dashboard-amount" id="suppliesTabFundDisplay">$0</div>
@@ -694,7 +723,6 @@
         </div>
 
         <div class="two-column-layout">
-            <!-- 左欄：公積金投資與交易 -->
             <div>
                 <div class="card">
                     <h3>📈 公積金投資與交易</h3>
@@ -718,7 +746,6 @@
                         <input type="text" id="investItem" placeholder="例: 祝武捲 / 贊助城戰">
                     </div>
 
-                    <!-- 買進與花費欄位 (單價 + 數量) -->
                     <div id="fieldBuyExpense" class="row">
                         <div style="flex: 1;">
                             <label id="labelUnitPrice">買進單價 ($)</label>
@@ -730,7 +757,6 @@
                         </div>
                     </div>
 
-                    <!-- 賣出結算專用欄位 (成本單價 + 售出單價 + 數量) -->
                     <div id="fieldSellProfit" style="display: none;">
                         <div class="row">
                             <div style="flex: 1;">
@@ -760,7 +786,6 @@
                     <button type="button" onclick="addInvestRecord()" style="width: 100%; margin-top: 14px; padding: 10px;">紀錄交易並更新資產池</button>
                 </div>
 
-                <!-- 折疊卡片：投資與交易明細 -->
                 <div class="card">
                     <h3 class="collapsible-header" onclick="toggleCollapse('investCollapseBody', 'investToggleIcon')">
                         <span>📊 投資與交易明細 <span id="investToggleIcon" class="toggle-icon">▼</span></span>
@@ -785,7 +810,6 @@
                 </div>
             </div>
 
-            <!-- 右欄：公會倉庫物資清單 -->
             <div>
                 <div class="card">
                     <h3>➕ 新增公會倉庫物資</h3>
@@ -812,7 +836,6 @@
                     <button type="button" onclick="addSupplyRecord()" style="width: 100%; margin-top: 14px; padding: 10px;">新增至公會倉庫</button>
                 </div>
 
-                <!-- 折疊卡片：盟倉物資清單 -->
                 <div class="card">
                     <h3 class="collapsible-header" onclick="toggleCollapse('supplyCollapseBody', 'supplyToggleIcon')">
                         <span>📦 盟倉物資清單 <span id="supplyToggleIcon" class="toggle-icon">▼</span></span>
@@ -1021,6 +1044,21 @@
     </div>
 
     <script>
+        /* ---------------- Firebase 初始化與即時同步 ---------------- */
+        const firebaseConfig = {
+            apiKey: "AIzaSyDWq2bXCfdff3qMVrlL-QP6d15tzi7HYZw",
+            authDomain: "lineage-party.firebaseapp.com",
+            databaseURL: "https://lineage-party-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "lineage-party",
+            storageBucket: "lineage-party.firebasestorage.app",
+            messagingSenderId: "1062531507172",
+            appId: "1:1062531507172:web:a936117cc78ecc1770ddf1"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const docRef = db.collection('guild_system').doc('main_data');
+
         function getLocalDateString() {
             const d = new Date();
             const year = d.getFullYear();
@@ -1057,7 +1095,70 @@
             renderInvestmentsList();
             autoCalculate();
             toggleInvestFields();
+
+            initFirebaseSync();
         };
+
+        function updateCloudBadge(status) {
+            const badge = document.getElementById('cloudStatusBadge');
+            if (!badge) return;
+            if (status === 'synced') {
+                badge.innerHTML = '🟢 雲端同步完成';
+                badge.style.borderColor = 'var(--accent-green)';
+                badge.style.color = 'var(--accent-green)';
+            } else if (status === 'syncing') {
+                badge.innerHTML = '🟡 正在上傳雲端...';
+                badge.style.borderColor = 'var(--accent-gold)';
+                badge.style.color = 'var(--accent-gold)';
+            }
+        }
+
+        function initFirebaseSync() {
+            docRef.onSnapshot((doc) => {
+                if (doc.exists) {
+                    const data = doc.data();
+                    if (data.commonMembers) commonMembers = data.commonMembers;
+                    if (data.commonItems) commonItems = data.commonItems;
+                    if (data.settlementHistory) settlementHistory = data.settlementHistory;
+                    if (data.suppliesHistory) suppliesHistory = data.suppliesHistory;
+                    if (data.investmentHistory) investmentHistory = data.investmentHistory;
+
+                    localStorage.setItem('heaven_common_members', JSON.stringify(commonMembers));
+                    localStorage.setItem('heaven_common_items', JSON.stringify(commonItems));
+                    localStorage.setItem('heaven_settlement_history', JSON.stringify(settlementHistory));
+                    localStorage.setItem('heaven_supplies_history', JSON.stringify(suppliesHistory));
+                    localStorage.setItem('heaven_investment_history', JSON.stringify(investmentHistory));
+
+                    renderMemberSelect();
+                    renderItemDatalist();
+                    renderHistoryList();
+                    renderPendingOverview();
+                    renderSuppliesList();
+                    renderInvestmentsList();
+                    autoCalculate();
+                    updateCloudBadge('synced');
+                } else {
+                    // 若雲端為空，自動將預設資料上傳至雲端
+                    syncAllToCloud();
+                }
+            });
+        }
+
+        function syncAllToCloud() {
+            updateCloudBadge('syncing');
+            const payload = {
+                commonMembers: commonMembers,
+                commonItems: commonItems,
+                settlementHistory: settlementHistory,
+                suppliesHistory: suppliesHistory,
+                investmentHistory: investmentHistory,
+                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            docRef.set(payload).then(() => {
+                updateCloudBadge('synced');
+            });
+        }
 
         function switchTab(tabId) {
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -1110,6 +1211,7 @@
                 commonMembers.push(name);
                 localStorage.setItem('heaven_common_members', JSON.stringify(commonMembers));
                 renderMemberSelect();
+                syncAllToCloud();
             }
             input.value = '';
         }
@@ -1130,6 +1232,7 @@
                 commonItems.push(name);
                 localStorage.setItem('heaven_common_items', JSON.stringify(commonItems));
                 renderItemDatalist();
+                syncAllToCloud();
             }
         }
 
@@ -1255,7 +1358,6 @@
             const formattedProfit = `${totalInvestmentProfit >= 0 ? '+' : ''}$${totalInvestmentProfit.toLocaleString()}`;
             const formattedStockCost = `$${totalStockCost.toLocaleString()}`;
 
-            // 即時結算分頁儀表板
             document.getElementById('historyTabMainFundDisplay').innerText = formattedTotal;
             document.getElementById('historyTabRaidFundDisplay').innerText = formattedRaidBase;
             document.getElementById('historyTabSupplyIncomeDisplay').innerText = formattedSupplyIncome;
@@ -1264,7 +1366,6 @@
             histProfitDisplay.style.color = totalInvestmentProfit >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
             document.getElementById('historyTabStockCostDisplay').innerText = formattedStockCost;
 
-            // 物資投資分頁儀表板
             document.getElementById('suppliesTabFundDisplay').innerText = formattedTotal;
             document.getElementById('suppliesTabRaidFundDisplay').innerText = formattedRaidBase;
             document.getElementById('suppliesTabSupplyIncomeDisplay').innerText = formattedSupplyIncome;
@@ -1427,7 +1528,8 @@
             renderHistoryList();
             renderPendingOverview();
             autoCalculate();
-            alert("結算紀錄已成功儲存！可於右側列表查看與核銷。");
+            syncAllToCloud();
+            alert("結算紀錄已成功儲存並同步至雲端！");
             return true;
         }
 
@@ -1440,7 +1542,7 @@
             saveCurrentRecord();
 
             navigator.clipboard.writeText(currentCalculatedData.text).then(() => {
-                alert("已成功複製明細並儲存紀錄！");
+                alert("已成功複製明細並同步至雲端！");
             });
         }
 
@@ -1555,6 +1657,7 @@
                 localStorage.setItem('heaven_settlement_history', JSON.stringify(settlementHistory));
                 renderHistoryList();
                 renderPendingOverview();
+                syncAllToCloud();
                 alert(`已成功核銷 ${memberName} 的 ${updatedCount} 筆款項！`);
             }
         }
@@ -1965,7 +2068,8 @@
             renderHistoryList();
             renderPendingOverview();
             autoCalculate();
-            alert("結算紀錄與價格已成功更新並重算完畢！");
+            syncAllToCloud();
+            alert("結算紀錄與價格已成功更新並同步！");
         }
 
         function closeEditModal() {
@@ -2019,6 +2123,7 @@
                 renderHistoryList();
                 renderPendingOverview();
                 autoCalculate();
+                syncAllToCloud();
             }
         }
 
@@ -2029,6 +2134,7 @@
                 renderHistoryList();
                 renderPendingOverview();
                 autoCalculate();
+                syncAllToCloud();
             }
         }
 
@@ -2132,7 +2238,8 @@
 
             renderInvestmentsList();
             autoCalculate();
-            alert("投資交易已成功紀錄，資產池與損益已即時更新！");
+            syncAllToCloud();
+            alert("投資交易已成功紀錄並同步！");
         }
 
         function renderInvestmentsList() {
@@ -2276,7 +2383,8 @@
             closeEditInvestModal();
             renderInvestmentsList();
             autoCalculate();
-            alert("投資交易紀錄已修改並更新餘額！");
+            syncAllToCloud();
+            alert("投資交易紀錄已修改並同步！");
         }
 
         function closeEditInvestModal() {
@@ -2289,6 +2397,7 @@
                 localStorage.setItem('heaven_investment_history', JSON.stringify(investmentHistory));
                 renderInvestmentsList();
                 autoCalculate();
+                syncAllToCloud();
             }
         }
 
@@ -2298,6 +2407,7 @@
                 localStorage.removeItem('heaven_investment_history');
                 renderInvestmentsList();
                 autoCalculate();
+                syncAllToCloud();
             }
         }
 
@@ -2329,7 +2439,8 @@
             document.getElementById('supplyNote').value = '';
 
             renderSuppliesList();
-            alert("物資已成功存入公會倉庫！");
+            syncAllToCloud();
+            alert("物資已成功存入公會倉庫並同步！");
         }
 
         function renderSuppliesList() {
@@ -2420,6 +2531,7 @@
 
             closeEditSupplyModal();
             renderSuppliesList();
+            syncAllToCloud();
             alert("公會倉庫物資已成功更新！");
         }
 
@@ -2442,6 +2554,7 @@
                 item.status = newStatus;
                 localStorage.setItem('heaven_supplies_history', JSON.stringify(suppliesHistory));
                 renderSuppliesList();
+                syncAllToCloud();
             }
         }
 
@@ -2486,7 +2599,8 @@
             renderSuppliesList();
             renderInvestmentsList();
             autoCalculate();
-            alert("物資已標記為賣出，金額已全額轉入【物資變現】！");
+            syncAllToCloud();
+            alert("物資已標記為賣出，金額已全額轉入【物資變現】並同步！");
         }
 
         function closeSupplySellModal() {
@@ -2499,6 +2613,7 @@
                 suppliesHistory.splice(index, 1);
                 localStorage.setItem('heaven_supplies_history', JSON.stringify(suppliesHistory));
                 renderSuppliesList();
+                syncAllToCloud();
             }
         }
 
@@ -2507,6 +2622,7 @@
                 suppliesHistory = [];
                 localStorage.removeItem('heaven_supplies_history');
                 renderSuppliesList();
+                syncAllToCloud();
             }
         }
     </script>
