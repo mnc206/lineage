@@ -1,0 +1,2737 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>團練結算與公會管理系統</title>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        :root {
+            --bg-primary: #0a0c10;
+            --bg-card: #12161f;
+            --bg-input: #1a202c;
+            --border-color: #2d3748;
+            --accent-gold: #f59e0b;
+            --accent-gold-hover: #d97706;
+            --accent-green: #10b981;
+            --accent-blue: #3b82f6;
+            --accent-purple: #a855f7;
+            --accent-red: #ef4444;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 20px 16px;
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            line-height: 1.5;
+        }
+
+        h2 {
+            text-align: center;
+            color: var(--accent-gold);
+            font-size: 24px;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+            text-shadow: 0 0 12px rgba(245, 158, 11, 0.2);
+        }
+
+        .sync-status-bar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            margin-bottom: 16px;
+            color: var(--text-muted);
+            flex-wrap: wrap;
+        }
+
+        .sync-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+        }
+
+        .tab-group {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .tab-btn {
+            flex: 1;
+            background: var(--bg-card);
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+            padding: 12px 8px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .tab-btn.active {
+            background: var(--accent-gold);
+            color: #000;
+            border-color: var(--accent-gold);
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+        }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        h3 {
+            color: var(--accent-gold);
+            font-size: 16px;
+            margin-top: 0;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .card {
+            background: var(--bg-card);
+            padding: 18px 20px;
+            border-radius: 12px;
+            margin-bottom: 18px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        /* 可折疊卡片樣式 */
+        .collapsible-header {
+            cursor: pointer;
+            user-select: none;
+            margin-bottom: 0;
+        }
+
+        .collapsible-header:hover {
+            opacity: 0.9;
+        }
+
+        .collapsible-body {
+            margin-top: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .collapsible-body.collapsed {
+            display: none;
+        }
+
+        .toggle-icon {
+            font-size: 12px;
+            margin-left: 6px;
+            transition: transform 0.2s;
+        }
+
+        .fund-dashboard {
+            background: linear-gradient(135deg, #1c1917 0%, #291e10 100%);
+            border: 1px solid var(--accent-gold);
+            border-radius: 12px;
+            padding: 18px;
+            margin-bottom: 18px;
+            text-align: center;
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.15);
+        }
+
+        .fund-dashboard-title {
+            font-size: 13px;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+
+        .fund-dashboard-amount {
+            font-size: 30px;
+            font-weight: 800;
+            color: var(--accent-gold);
+            text-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        }
+
+        .fund-grid-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px dashed rgba(245, 158, 11, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .fund-grid-stats {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+            }
+        }
+
+        .fund-grid-stats > div {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .fund-grid-val {
+            font-size: 14px;
+            font-weight: 700;
+            font-family: ui-monospace, monospace;
+        }
+
+        label {
+            display: block;
+            margin-top: 10px;
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 13px;
+            letter-spacing: 0.5px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px 12px;
+            margin-top: 6px;
+            box-sizing: border-box;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-input);
+            color: var(--text-main);
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--accent-gold);
+        }
+
+        .row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 8px;
+            align-items: center;
+        }
+
+        .row input, .row select { margin-top: 0; }
+
+        button {
+            background-color: var(--accent-gold);
+            color: #000;
+            font-weight: 700;
+            padding: 10px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+
+        button:hover {
+            background-color: var(--accent-gold-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-del {
+            background-color: transparent;
+            color: var(--accent-red);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            padding: 8px 12px;
+        }
+
+        .btn-del:hover {
+            background-color: rgba(239, 68, 68, 0.15);
+            border-color: var(--accent-red);
+            transform: none;
+        }
+
+        .btn-secondary {
+            background-color: rgba(59, 130, 246, 0.15);
+            color: #60a5fa;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .btn-secondary:hover {
+            background-color: rgba(59, 130, 246, 0.3);
+            transform: none;
+        }
+
+        .member-item {
+            background: var(--bg-input);
+            padding: 6px 10px;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .member-seq {
+            color: var(--accent-gold);
+            font-weight: 800;
+            font-size: 12px;
+            font-family: ui-monospace, monospace;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        .summary-card {
+            background: rgba(16, 185, 129, 0.08);
+            border: 1px solid rgba(16, 185, 129, 0.25);
+            padding: 16px;
+            border-radius: 10px;
+            margin-top: 16px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            text-align: center;
+        }
+
+        .summary-card > div {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .summary-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--accent-green);
+        }
+
+        .result-box {
+            background: #000;
+            padding: 16px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            border: 1px solid var(--border-color);
+            color: var(--accent-green);
+            line-height: 1.6;
+            font-size: 14px;
+        }
+
+        .checkbox-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            font-weight: normal;
+            font-size: 12px;
+            margin-top: 0;
+            white-space: nowrap;
+        }
+
+        .checkbox-label input { width: 14px; height: 14px; margin: 0; cursor: pointer; }
+
+        .member-share {
+            color: var(--accent-green);
+            font-weight: 700;
+            font-size: 13px;
+            white-space: nowrap;
+            min-width: 75px;
+            text-align: right;
+            margin-left: auto;
+        }
+
+        .item-subtotal {
+            color: var(--accent-gold);
+            font-weight: 700;
+            font-size: 13px;
+            white-space: nowrap;
+            min-width: 80px;
+            text-align: right;
+        }
+
+        .empty-tip {
+            color: var(--text-muted);
+            font-size: 13px;
+            text-align: center;
+            padding: 12px 0;
+            border: 1px dashed var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .history-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin-bottom: 10px;
+        }
+
+        .history-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 8px;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+        }
+
+        .history-date {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .history-sub {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .history-btn-group {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .history-btn-group button {
+            font-size: 12px;
+            padding: 5px 8px;
+            border-radius: 6px;
+        }
+
+        .status-badge {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status-badge.pending {
+            background-color: rgba(245, 158, 11, 0.2);
+            color: var(--accent-gold);
+            border: 1px solid rgba(245, 158, 11, 0.4);
+        }
+        .status-badge.completed {
+            background-color: rgba(16, 185, 129, 0.2);
+            color: var(--accent-green);
+            border: 1px solid rgba(16, 185, 129, 0.4);
+        }
+
+        .pending-summary-card {
+            background: linear-gradient(135deg, #111e18 0%, #15241b 100%);
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-bottom: 18px;
+        }
+
+        .pending-member-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 7px 4px;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+            font-size: 13px;
+        }
+
+        .pending-member-row:last-child {
+            border-bottom: none;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        .modal-card {
+            background: var(--bg-card);
+            width: 100%;
+            max-width: 540px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            padding: 16px 18px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.9);
+            max-height: 88vh;
+            overflow-y: auto;
+        }
+
+        .edit-member-list-box {
+            background: var(--bg-input);
+            border-radius: 8px;
+            padding: 4px 10px;
+            margin-top: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .edit-member-row-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 2px;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .edit-member-row-item:last-child {
+            border-bottom: none;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 14px;
+        }
+
+        .two-column-layout {
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+            gap: 18px;
+            align-items: start;
+        }
+
+        @media (max-width: 880px) {
+            .two-column-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .custom-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+
+        .custom-table th, .custom-table td {
+            border: 1px solid var(--border-color);
+            padding: 7px 6px;
+            text-align: left;
+        }
+
+        .custom-table th {
+            background-color: var(--bg-input);
+            color: var(--accent-gold);
+            font-weight: bold;
+        }
+
+        .custom-table td {
+            background-color: rgba(0, 0, 0, 0.2);
+            color: var(--text-main);
+        }
+
+        .item-sold-text {
+            text-decoration: line-through;
+            color: var(--text-muted) !important;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>⚔️ 團練結算與公會管理系統</h2>
+
+    <!-- 頂部即時連線與資料移轉按鈕 -->
+    <div class="sync-status-bar">
+        <span id="cloudStatusBadge" class="sync-badge">🟢 雲端連線就緒</span>
+        <button type="button" class="btn-secondary" style="padding: 3px 10px; font-size: 11px;" onclick="openTransferModal()">🔄 轉移 / 備份舊資料</button>
+    </div>
+
+    <!-- 切換 Tab -->
+    <div class="tab-group">
+        <button class="tab-btn active" onclick="switchTab('tab-settlement')">⚡ 即時結算與歷史管理</button>
+        <button class="tab-btn" onclick="switchTab('tab-supplies')">📦 物資與公積金投資</button>
+    </div>
+
+    <!-- 自動完成品項 datalist -->
+    <datalist id="commonItemsDatalist"></datalist>
+
+    <!-- 分頁一：即時結算與歷史管理 -->
+    <div id="tab-settlement" class="tab-content active">
+        <div class="two-column-layout">
+            <!-- 左欄：即時結算操作區 -->
+            <div>
+                <div class="card">
+                    <div class="row">
+                        <div style="flex: 1;">
+                            <label>日期</label>
+                            <input type="date" id="eventDate" oninput="autoCalculate()">
+                        </div>
+                        <div style="flex: 1;">
+                            <label>地點 / 目標</label>
+                            <input type="text" id="eventLocation" placeholder="傲慢之塔 8 樓" oninput="autoCalculate()">
+                        </div>
+                    </div>
+                    <div>
+                        <label>出團結算狀態：</label>
+                        <select id="settlementStatus" onchange="autoCalculate()">
+                            <option value="completed" selected>⚡ 正式結算 (已確認售價)</option>
+                            <option value="pending">📦 暫存待售 (寶物尚未賣出)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>💎 品項</h3>
+                    <div id="itemList">
+                        <div class="row item-row">
+                            <input type="text" placeholder="品名 (輸入自動匹配歷史)" list="commonItemsDatalist" class="item-name" style="flex: 1.8;" oninput="autoCalculate()">
+                            <input type="number" placeholder="數量" class="item-qty" value="1" min="1" style="flex: 0.7;" oninput="autoCalculate()">
+                            <input type="number" placeholder="單價" class="item-price" style="flex: 1.1;" oninput="autoCalculate()">
+                            <span class="item-subtotal">小計: $0</span>
+                            <button type="button" class="btn-del" onclick="removeItemRow(this)">刪除</button>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-secondary" onclick="addItemRow()" style="margin-top: 8px;">+ 新增品項</button>
+                </div>
+
+                <div class="card">
+                    <h3>👥 人員與分配</h3>
+
+                    <div class="row" style="margin-bottom: 12px;">
+                        <select id="quickMemberSelect" onchange="handleQuickMemberSelect(this)" style="flex: 1.5; margin-top: 0;">
+                            <option value="">＋ 快速加入常用成員...</option>
+                        </select>
+                        <input type="text" id="customMemberName" placeholder="輸入自訂成員名..." style="flex: 1.2; margin-top: 0;" onkeydown="if(event.key==='Enter'){addCustomMember();event.preventDefault();}">
+                        <button type="button" class="btn-secondary" onclick="addCustomMember()" style="padding: 9px 12px; white-space: nowrap;">加入</button>
+                    </div>
+
+                    <label>公積金抽成 (%)：</label>
+                    <select id="fundRate" style="margin-bottom: 14px;" onchange="autoCalculate()">
+                        <option value="0">0%</option>
+                        <option value="3">3%</option>
+                        <option value="5" selected>5%</option>
+                        <option value="10">10%</option>
+                    </select>
+
+                    <label>當次成員清單：</label>
+                    <div id="memberList" style="margin-top: 6px;"></div>
+
+                    <div class="summary-card">
+                        <div>寶物總額<span id="previewTotal" class="summary-value">$0</span></div>
+                        <div>人數<span id="previewCount" class="summary-value" style="color:#60a5fa;">0</span></div>
+                        <div>
+                            每人實得
+                            <span id="previewPerPerson" class="summary-value">$0</span>
+                            <span id="previewCalcDetail" style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">均分 $0 (去零 -$0)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" id="resultCard">
+                    <h3>📋 結算明細</h3>
+                    <div class="result-box" id="resultText">請輸入品項金額與成員...</div>
+                    <div class="btn-group">
+                        <button type="button" onclick="copyResult()" style="background-color: var(--accent-green); color: #000; flex: 2; padding: 12px;">複製明細並儲存</button>
+                        <button type="button" onclick="saveCurrentRecord()" class="btn-secondary" style="flex: 1; padding: 12px;">僅儲存紀錄</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右欄：歷史紀錄與公積金總覽 -->
+            <div>
+                <!-- 公積金可用總額儀表板 (四細項分流) -->
+                <div class="fund-dashboard">
+                    <div class="fund-dashboard-title">🏛️ 公積金可用總額</div>
+                    <div class="fund-dashboard-amount" id="historyTabMainFundDisplay">$0</div>
+                    
+                    <div class="fund-grid-stats">
+                        <div>
+                            <span>⚔️ 團練積累</span>
+                            <span class="fund-grid-val" id="historyTabRaidFundDisplay" style="color:var(--text-main);">$0</span>
+                        </div>
+                        <div>
+                            <span>📦 物資變現</span>
+                            <span class="fund-grid-val" id="historyTabSupplyIncomeDisplay" style="color:var(--accent-purple);">$0</span>
+                        </div>
+                        <div>
+                            <span>📈 投資淨利</span>
+                            <span class="fund-grid-val" id="historyTabProfitPoolDisplay" style="color:var(--accent-green);">+$0</span>
+                        </div>
+                        <div>
+                            <span>📦 在庫成本</span>
+                            <span class="fund-grid-val" id="historyTabStockCostDisplay" style="color:var(--accent-gold);">$0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 跨場次未領款統計儀表板 -->
+                <div class="pending-summary-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <h3 style="margin: 0; color: var(--accent-green); font-size: 15px;">⏳ 尚未領款成員統計</h3>
+                        <span id="pendingSummaryBadge" style="font-size: 12px; color: var(--accent-gold); font-weight: bold;">0 人待領 / 總計 $0</span>
+                    </div>
+                    <div id="pendingMembersOverviewList" style="max-height: 220px; overflow-y: auto;"></div>
+                </div>
+
+                <div class="card">
+                    <h3>
+                        <span>📜 結算紀錄列表</span>
+                        <button type="button" onclick="clearAllHistory()" class="btn-del" style="font-size: 12px; padding: 4px 8px;">清空歷史</button>
+                    </h3>
+                    <div id="historyList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 分頁二：物資與公積金投資 -->
+    <div id="tab-supplies" class="tab-content">
+        <!-- 儀表板 (四細項分流) -->
+        <div class="fund-dashboard">
+            <div class="fund-dashboard-title">🏛️ 公積金可用總額</div>
+            <div class="fund-dashboard-amount" id="suppliesTabFundDisplay">$0</div>
+            
+            <div class="fund-grid-stats">
+                <div>
+                    <span>⚔️ 團練積累</span>
+                    <span class="fund-grid-val" id="suppliesTabRaidFundDisplay" style="color:var(--text-main);">$0</span>
+                </div>
+                <div>
+                    <span>📦 物資變現</span>
+                    <span class="fund-grid-val" id="suppliesTabSupplyIncomeDisplay" style="color:var(--accent-purple);">$0</span>
+                </div>
+                <div>
+                    <span>📈 投資淨利</span>
+                    <span class="fund-grid-val" id="fundProfitPoolDisplay" style="color:var(--accent-green);">+$0</span>
+                </div>
+                <div>
+                    <span>📦 在庫成本</span>
+                    <span class="fund-grid-val" id="fundStockCostDisplay" style="color:var(--accent-gold);">$0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="two-column-layout">
+            <!-- 左欄：公積金投資與交易 -->
+            <div>
+                <div class="card">
+                    <h3>📈 公積金投資與交易</h3>
+                    <div class="row">
+                        <div style="flex: 1;">
+                            <label>日期</label>
+                            <input type="date" id="investDate">
+                        </div>
+                        <div style="flex: 1.2;">
+                            <label>交易類型</label>
+                            <select id="investType" onchange="toggleInvestFields()">
+                                <option value="buy">買進/投資 (動用本金購買)</option>
+                                <option value="sell">賣出/結算 (結算投資獲利)</option>
+                                <option value="expense">公務花費 (雜支/城戰等)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label>標的名稱 / 項目</label>
+                        <input type="text" id="investItem" placeholder="例: 祝武捲 / 贊助城戰">
+                    </div>
+
+                    <!-- 買進與花費欄位 (單價 + 數量) -->
+                    <div id="fieldBuyExpense" class="row">
+                        <div style="flex: 1;">
+                            <label id="labelUnitPrice">買進單價 ($)</label>
+                            <input type="number" id="investUnitPrice" placeholder="單價" min="0" oninput="calcInvestTotal()">
+                        </div>
+                        <div style="flex: 1;">
+                            <label>數量</label>
+                            <input type="number" id="investQty" placeholder="數量" value="1" min="1" oninput="calcInvestTotal()">
+                        </div>
+                    </div>
+
+                    <!-- 賣出結算專用欄位 (成本單價 + 售出單價 + 數量) -->
+                    <div id="fieldSellProfit" style="display: none;">
+                        <div class="row">
+                            <div style="flex: 1;">
+                                <label>買進成本單價 ($)</label>
+                                <input type="number" id="sellUnitCost" placeholder="成本單價" min="0" oninput="calcInvestTotal()">
+                            </div>
+                            <div style="flex: 1;">
+                                <label>賣出成交單價 ($)</label>
+                                <input type="number" id="sellUnitPrice" placeholder="售出單價" min="0" oninput="calcInvestTotal()">
+                            </div>
+                            <div style="flex: 0.8;">
+                                <label>數量</label>
+                                <input type="number" id="sellQty" placeholder="數量" value="1" min="1" oninput="calcInvestTotal()">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 6px;">
+                        <label id="investPreviewLabel">總額試算：<strong id="investTotalPreview" style="color:var(--accent-gold);">$0</strong></label>
+                    </div>
+
+                    <div>
+                        <label>備註說明</label>
+                        <input type="text" id="investProfit" placeholder="例: 盟友收購 / 庫存售出">
+                    </div>
+
+                    <button type="button" onclick="addInvestRecord()" style="width: 100%; margin-top: 14px; padding: 10px;">紀錄交易並更新資產池</button>
+                </div>
+
+                <!-- 折疊卡片：投資與交易明細 -->
+                <div class="card">
+                    <h3 class="collapsible-header" onclick="toggleCollapse('investCollapseBody', 'investToggleIcon')">
+                        <span>📊 投資與交易明細 <span id="investToggleIcon" class="toggle-icon">▼</span></span>
+                        <button type="button" onclick="event.stopPropagation(); clearAllInvestments();" class="btn-del" style="font-size: 12px; padding: 4px 8px;">清空交易</button>
+                    </h3>
+                    <div id="investCollapseBody" class="collapsible-body">
+                        <div style="overflow-x: auto;">
+                            <table class="custom-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 16%;">日期</th>
+                                        <th style="width: 15%;">類型</th>
+                                        <th style="width: 22%;">項目</th>
+                                        <th style="width: 27%;">金額 / 損益</th>
+                                        <th style="width: 20%;">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="investListTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右欄：公會倉庫物資清單 -->
+            <div>
+                <div class="card">
+                    <h3>➕ 新增公會倉庫物資</h3>
+                    <div class="row">
+                        <div style="flex: 1;">
+                            <label>日期</label>
+                            <input type="date" id="supplyDate">
+                        </div>
+                        <div style="flex: 1;">
+                            <label>提供者</label>
+                            <input type="text" id="supplyProvider" placeholder="角色名">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div style="flex: 1.5;">
+                            <label>品項名稱</label>
+                            <input type="text" id="supplyItem" placeholder="例: 隱身鬥篷">
+                        </div>
+                        <div style="flex: 1;">
+                            <label>數量 / 備註</label>
+                            <input type="text" id="supplyNote" placeholder="例: 1 件">
+                        </div>
+                    </div>
+                    <button type="button" onclick="addSupplyRecord()" style="width: 100%; margin-top: 14px; padding: 10px;">新增至公會倉庫</button>
+                </div>
+
+                <!-- 折疊卡片：盟倉物資清單 -->
+                <div class="card">
+                    <h3 class="collapsible-header" onclick="toggleCollapse('supplyCollapseBody', 'supplyToggleIcon')">
+                        <span>📦 盟倉物資清單 <span id="supplyToggleIcon" class="toggle-icon">▼</span></span>
+                        <button type="button" onclick="event.stopPropagation(); clearAllSupplies();" class="btn-del" style="font-size: 12px; padding: 4px 8px;">清空倉庫</button>
+                    </h3>
+                    <div id="supplyCollapseBody" class="collapsible-body">
+                        <div style="overflow-x: auto;">
+                            <table class="custom-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 26%;">品項 (提供者)</th>
+                                        <th style="width: 26%;">狀態</th>
+                                        <th style="width: 26%;">處置備註</th>
+                                        <th style="width: 22%;">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="supplyListTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 編輯結算紀錄與核銷彈出視窗 -->
+    <div class="modal-overlay" id="editModal">
+        <div class="modal-card">
+            <h3>✏️ 編輯團練內容與領款核銷</h3>
+            <input type="hidden" id="editRecordIndex">
+            
+            <div class="row">
+                <div style="flex: 1;">
+                    <label>地點 / 目標：</label>
+                    <input type="text" id="editLocation">
+                </div>
+                <div style="flex: 1;">
+                    <label>公積金抽成 (%)：</label>
+                    <select id="editFundRate" onchange="recalculateEditModal()">
+                        <option value="0">0%</option>
+                        <option value="3">3%</option>
+                        <option value="5">5%</option>
+                        <option value="10">10%</option>
+                    </select>
+                </div>
+            </div>
+
+            <label>出團結算狀態：</label>
+            <select id="editStatus" onchange="recalculateEditModal()">
+                <option value="completed">⚡ 正式結算 (已確認售價)</option>
+                <option value="pending">📦 暫存待售 (待售出中)</option>
+            </select>
+
+            <label style="margin-top: 14px; color: var(--accent-gold);">💎 寶物品項與售價修改：</label>
+            <div id="editItemList" style="margin-top: 6px;"></div>
+            <button type="button" class="btn-secondary" onclick="addEditItemRow()" style="margin-top: 4px; padding: 5px 10px; font-size: 12px;">+ 新增品項</button>
+
+            <div class="summary-card" style="margin-top: 12px; padding: 10px; font-size: 11px;">
+                <div>總額<span id="editPreviewTotal" class="summary-value" style="font-size: 15px;">$0</span></div>
+                <div>
+                    每人實得
+                    <span id="editPreviewPerPerson" class="summary-value" style="font-size: 15px; color:#60a5fa;">$0</span>
+                    <span id="editPreviewCalcDetail" style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">均分 $0 (去零 -$0)</span>
+                </div>
+                <div>新增公積金<span id="editPreviewFund" class="summary-value" style="font-size: 15px; color:var(--accent-gold);">$0</span></div>
+            </div>
+
+            <label style="margin-top: 14px; color: var(--accent-gold);">👥 參團名單與領款核銷：</label>
+            <div class="edit-member-list-box" id="editMemberList"></div>
+
+            <div class="btn-group" style="margin-top: 18px;">
+                <button type="button" onclick="saveEditedRecord()" style="background-color: var(--accent-green); color: #000; flex: 1; padding: 10px;">儲存修改並更新</button>
+                <button type="button" onclick="closeEditModal()" class="btn-secondary" style="flex: 0.8; padding: 10px;">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 編輯投資交易彈出視窗 -->
+    <div class="modal-overlay" id="editInvestModal">
+        <div class="modal-card">
+            <h3>✏️ 編輯投資/交易紀錄</h3>
+            <input type="hidden" id="editInvestIndex">
+
+            <div class="row">
+                <div style="flex: 1;">
+                    <label>日期</label>
+                    <input type="date" id="editInvestDate">
+                </div>
+                <div style="flex: 1.2;">
+                    <label>交易類型</label>
+                    <select id="editInvestType" onchange="toggleEditInvestFields()">
+                        <option value="buy">買進/投資</option>
+                        <option value="sell">賣出/結算</option>
+                        <option value="expense">公務花費</option>
+                    </select>
+                </div>
+            </div>
+
+            <label>標的名稱 / 項目：</label>
+            <input type="text" id="editInvestItem">
+
+            <div id="editFieldBuyExpense" class="row">
+                <div style="flex: 1;">
+                    <label id="editLabelUnitPrice">單價 ($)</label>
+                    <input type="number" id="editInvestUnitPrice" min="0">
+                </div>
+                <div style="flex: 1;">
+                    <label>數量</label>
+                    <input type="number" id="editInvestQty" min="1">
+                </div>
+            </div>
+
+            <div id="editFieldSellProfit" style="display: none;">
+                <div class="row">
+                    <div style="flex: 1;">
+                        <label>買進成本單價 ($)</label>
+                        <input type="number" id="editSellUnitCost" min="0">
+                    </div>
+                    <div style="flex: 1;">
+                        <label>賣出成交單價 ($)</label>
+                        <input type="number" id="editSellUnitPrice" min="0">
+                    </div>
+                    <div style="flex: 0.8;">
+                        <label>數量</label>
+                        <input type="number" id="editSellQty" min="1">
+                    </div>
+                </div>
+            </div>
+
+            <label>備註說明：</label>
+            <input type="text" id="editInvestProfitNote">
+
+            <div class="btn-group" style="margin-top: 18px;">
+                <button type="button" onclick="saveEditedInvestRecord()" style="background-color: var(--accent-green); color: #000; flex: 1; padding: 10px;">儲存修改</button>
+                <button type="button" onclick="closeEditInvestModal()" class="btn-secondary" style="flex: 0.8; padding: 10px;">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 編輯倉庫物資彈出視窗 -->
+    <div class="modal-overlay" id="editSupplyModal">
+        <div class="modal-card">
+            <h3>✏️ 編輯公會倉庫物資</h3>
+            <input type="hidden" id="editSupplyIndex">
+
+            <div class="row">
+                <div style="flex: 1;">
+                    <label>日期</label>
+                    <input type="date" id="editSupplyDate">
+                </div>
+                <div style="flex: 1;">
+                    <label>提供者</label>
+                    <input type="text" id="editSupplyProvider">
+                </div>
+            </div>
+
+            <label>品項名稱：</label>
+            <input type="text" id="editSupplyItemName">
+
+            <label>數量 / 備註說明：</label>
+            <input type="text" id="editSupplyNote">
+
+            <div class="btn-group" style="margin-top: 18px;">
+                <button type="button" onclick="saveEditedSupplyRecord()" style="background-color: var(--accent-green); color: #000; flex: 1; padding: 10px;">儲存修改</button>
+                <button type="button" onclick="closeEditSupplyModal()" class="btn-secondary" style="flex: 0.8; padding: 10px;">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 物資轉入公積金彈出視窗 -->
+    <div class="modal-overlay" id="supplySellModal">
+        <div class="modal-card">
+            <h3>💰 倉庫物資賣出並入帳公積金</h3>
+            <input type="hidden" id="sellSupplyIndex">
+            
+            <label>賣出品項：</label>
+            <input type="text" id="sellSupplyItemName" readonly style="background-color:#151a23; color:var(--accent-gold); cursor:not-allowed;">
+
+            <label>實際售出總額 ($)：</label>
+            <input type="number" id="modalSupplyRevenue" placeholder="請輸入實收金額" min="1" oninput="calcSupplyModalProfit()">
+
+            <div style="margin-top: 8px;">
+                <label>入帳試算：<strong id="modalSupplyProfitDisplay" style="color:var(--accent-purple); font-size:16px;">計入物資變現 +$0</strong></label>
+            </div>
+
+            <label>備註說明：</label>
+            <input type="text" id="sellNoteInput" placeholder="例: 交易所售出 / 盟友收購">
+
+            <div class="btn-group" style="margin-top: 18px;">
+                <button type="button" onclick="confirmSupplySell()" style="background-color: var(--accent-green); color: #000; flex: 1; padding: 10px;">確認賣出並入帳</button>
+                <button type="button" onclick="closeSupplySellModal()" class="btn-secondary" style="flex: 0.8; padding: 10px;">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 查看原始明細彈出視窗 -->
+    <div class="modal-overlay" id="detailModal">
+        <div class="modal-card">
+            <h3 id="modalTitle">原始明細細節</h3>
+            <div class="result-box" id="modalText" style="max-height: 280px; overflow-y: auto; font-size: 13px;"></div>
+            <div class="btn-group">
+                <button type="button" onclick="copyModalText()" style="background-color: var(--accent-green); color: #000; flex: 1;">複製明細</button>
+                <button type="button" onclick="closeModal()" class="btn-secondary" style="flex: 1;">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 資料轉移與備份彈窗 -->
+    <div class="modal-overlay" id="transferModal">
+        <div class="modal-card">
+            <h3>🔄 資料移轉與備份管理</h3>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 0;">
+                若要將先前在「本機檔案」儲存的紀錄移轉至雲端，請先在舊頁面點擊「複製備份代碼」，再至新網址貼上匯入即可。
+            </p>
+
+            <label>備份資料代碼 (JSON)：</label>
+            <textarea id="transferDataText" style="width: 100%; height: 120px; background: var(--bg-input); color: var(--accent-green); border: 1px solid var(--border-color); border-radius: 8px; font-family: monospace; font-size: 12px; padding: 10px; box-sizing: border-box;"></textarea>
+
+            <div class="btn-group" style="margin-top: 12px;">
+                <button type="button" onclick="exportBackupData()" class="btn-secondary" style="flex: 1; padding: 10px;">📤 複製備份代碼</button>
+                <button type="button" onclick="importBackupData()" style="background-color: var(--accent-green); color: #000; flex: 1; padding: 10px;">📥 確認匯入並同步</button>
+            </div>
+            <button type="button" onclick="closeTransferModal()" class="btn-secondary" style="width: 100%; margin-top: 8px; padding: 8px;">關閉</button>
+        </div>
+    </div>
+
+    <script>
+        /* ---------------- Firebase 初始化與即時快取 ---------------- */
+        const firebaseConfig = {
+            apiKey: "AIzaSyDWq2bXCfdff3qMVrlL-QP6d15tzi7HYZw",
+            authDomain: "lineage-party.firebaseapp.com",
+            databaseURL: "https://lineage-party-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "lineage-party",
+            storageBucket: "lineage-party.firebasestorage.app",
+            messagingSenderId: "1062531507172",
+            appId: "1:1062531507172:web:a936117cc78ecc1770ddf1"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        
+        db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
+            console.log("Persistence status:", err.code);
+        });
+
+        const docRef = db.collection('guild_system').doc('main_data');
+
+        function getLocalDateString() {
+            const d = new Date();
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        const todayStr = getLocalDateString();
+        document.getElementById('eventDate').value = todayStr;
+        document.getElementById('supplyDate').value = todayStr;
+        document.getElementById('investDate').value = todayStr;
+
+        let commonMembers = JSON.parse(localStorage.getItem('heaven_common_members')) || ["騎士A", "妖精B", "法師C"];
+        let commonItems = JSON.parse(localStorage.getItem('heaven_common_items')) || ["隱身鬥篷", "對武器施法的卷軸", "對盔甲施法的卷軸"];
+        let settlementHistory = JSON.parse(localStorage.getItem('heaven_settlement_history')) || [];
+        let suppliesHistory = JSON.parse(localStorage.getItem('heaven_supplies_history')) || [];
+        let investmentHistory = JSON.parse(localStorage.getItem('heaven_investment_history')) || [];
+        let currentCalculatedData = null;
+
+        window.onload = function() {
+            renderMemberSelect();
+            renderItemDatalist();
+            renderHistoryList();
+            renderPendingOverview();
+            renderSuppliesList();
+            renderInvestmentsList();
+            autoCalculate();
+            toggleInvestFields();
+
+            initFirebaseRealtimeSync();
+        };
+
+        function updateCloudBadge(status) {
+            const badge = document.getElementById('cloudStatusBadge');
+            if (!badge) return;
+            if (status === 'synced') {
+                badge.innerHTML = '🟢 雲端即時同步中';
+                badge.style.borderColor = 'var(--accent-green)';
+                badge.style.color = 'var(--accent-green)';
+            } else if (status === 'syncing') {
+                badge.innerHTML = '🟡 正在同步...';
+                badge.style.borderColor = 'var(--accent-gold)';
+                badge.style.color = 'var(--accent-gold)';
+            } else if (status === 'error') {
+                badge.innerHTML = '🔴 離線模式 (本機快取)';
+                badge.style.borderColor = 'var(--accent-red)';
+                badge.style.color = 'var(--accent-red)';
+            }
+        }
+
+        function initFirebaseRealtimeSync() {
+            docRef.onSnapshot({ includeMetadataChanges: false }, (doc) => {
+                if (doc.exists) {
+                    const data = doc.data();
+                    if (data.commonMembers) commonMembers = data.commonMembers;
+                    if (data.commonItems) commonItems = data.commonItems;
+                    if (data.settlementHistory) settlementHistory = data.settlementHistory;
+                    if (data.suppliesHistory) suppliesHistory = data.suppliesHistory;
+                    if (data.investmentHistory) investmentHistory = data.investmentHistory;
+
+                    localStorage.setItem('heaven_common_members', JSON.stringify(commonMembers));
+                    localStorage.setItem('heaven_common_items', JSON.stringify(commonItems));
+                    localStorage.setItem('heaven_settlement_history', JSON.stringify(settlementHistory));
+                    localStorage.setItem('heaven_supplies_history', JSON.stringify(suppliesHistory));
+                    localStorage.setItem('heaven_investment_history', JSON.stringify(investmentHistory));
+
+                    renderMemberSelect();
+                    renderItemDatalist();
+                    renderHistoryList();
+                    renderPendingOverview();
+                    renderSuppliesList();
+                    renderInvestmentsList();
+                    autoCalculate();
+                    updateCloudBadge('synced');
+                } else {
+                    if (settlementHistory.length > 0 || suppliesHistory.length > 0 || investmentHistory.length > 0) {
+                        syncAllToCloud();
+                    }
+                }
+            }, (error) => {
+                console.error("Firebase Snapshot Error:", error);
+                updateCloudBadge('error');
+            });
+        }
+
+        function syncAllToCloud() {
+            updateCloudBadge('syncing');
+            const payload = {
+                commonMembers: commonMembers,
+                commonItems: commonItems,
+                settlementHistory: settlementHistory,
+                suppliesHistory: suppliesHistory,
+                investmentHistory: investmentHistory,
+                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            docRef.set(payload).then(() => {
+                updateCloudBadge('synced');
+            }).catch((err) => {
+                console.error("Cloud Save Failed:", err);
+                updateCloudBadge('error');
+            });
+        }
+
+        /* ---------------- 資料移轉與備份功能 ---------------- */
+        function openTransferModal() {
+            const dataObj = {
+                commonMembers: commonMembers,
+                commonItems: commonItems,
+                settlementHistory: settlementHistory,
+                suppliesHistory: suppliesHistory,
+                investmentHistory: investmentHistory
+            };
+            document.getElementById('transferDataText').value = JSON.stringify(dataObj);
+            document.getElementById('transferModal').style.display = 'flex';
+        }
+
+        function closeTransferModal() {
+            document.getElementById('transferModal').style.display = 'none';
+        }
+
+        function exportBackupData() {
+            const text = document.getElementById('transferDataText').value;
+            navigator.clipboard.writeText(text).then(() => {
+                alert("已成功複製備份代碼！請至 GitHub 網頁版點選「轉移/備份」貼上並匯入。");
+            });
+        }
+
+        function importBackupData() {
+            const text = document.getElementById('transferDataText').value.trim();
+            if (!text) {
+                alert("請先貼上備份代碼！");
+                return;
+            }
+
+            try {
+                const parsed = JSON.parse(text);
+                if (parsed.commonMembers) commonMembers = parsed.commonMembers;
+                if (parsed.commonItems) commonItems = parsed.commonItems;
+                if (parsed.settlementHistory) settlementHistory = parsed.settlementHistory;
+                if (parsed.suppliesHistory) suppliesHistory = parsed.suppliesHistory;
+                if (parsed.investmentHistory) investmentHistory = parsed.investmentHistory;
+
+                localStorage.setItem('heaven_common_members', JSON.stringify(commonMembers));
+                localStorage.setItem('heaven_common_items', JSON.stringify(commonItems));
+                localStorage.setItem('heaven_settlement_history', JSON.stringify(settlementHistory));
+                localStorage.setItem('heaven_supplies_history', JSON.stringify(suppliesHistory));
+                localStorage.setItem('heaven_investment_history', JSON.stringify(investmentHistory));
+
+                renderMemberSelect();
+                renderItemDatalist();
+                renderHistoryList();
+                renderPendingOverview();
+                renderSuppliesList();
+                renderInvestmentsList();
+                autoCalculate();
+
+                syncAllToCloud();
+                closeTransferModal();
+                alert("舊資料已成功匯入並同步至雲端資料庫！");
+            } catch (err) {
+                alert("備份代碼格式錯誤，請確認內容是否完整複製。");
+            }
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            if (tabId === 'tab-settlement') {
+                document.querySelectorAll('.tab-btn')[0].classList.add('active');
+            } else if (tabId === 'tab-supplies') {
+                document.querySelectorAll('.tab-btn')[1].classList.add('active');
+            }
+            document.getElementById(tabId).classList.add('active');
+        }
+
+        function toggleCollapse(bodyId, iconId) {
+            const body = document.getElementById(bodyId);
+            const icon = document.getElementById(iconId);
+            if (!body) return;
+            
+            body.classList.toggle('collapsed');
+            if (icon) {
+                icon.innerText = body.classList.contains('collapsed') ? '▲' : '▼';
+            }
+        }
+
+        function renderMemberSelect() {
+            const select = document.getElementById('quickMemberSelect');
+            if (!select) return;
+            select.innerHTML = '<option value="">＋ 快速加入常用成員...</option>';
+            commonMembers.forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                select.appendChild(opt);
+            });
+        }
+
+        function handleQuickMemberSelect(selectElem) {
+            const name = selectElem.value;
+            if (!name) return;
+            addMemberRow(name);
+            selectElem.value = '';
+        }
+
+        function addCustomMember() {
+            const input = document.getElementById('customMemberName');
+            const name = input.value.trim();
+            if (!name) return;
+            addMemberRow(name);
+            if (!commonMembers.includes(name)) {
+                commonMembers.push(name);
+                localStorage.setItem('heaven_common_members', JSON.stringify(commonMembers));
+                renderMemberSelect();
+                syncAllToCloud();
+            }
+            input.value = '';
+        }
+
+        function renderItemDatalist() {
+            const datalist = document.getElementById('commonItemsDatalist');
+            if (!datalist) return;
+            datalist.innerHTML = '';
+            commonItems.forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                datalist.appendChild(opt);
+            });
+        }
+
+        function saveItemToHistory(name) {
+            if (name && !commonItems.includes(name)) {
+                commonItems.push(name);
+                localStorage.setItem('heaven_common_items', JSON.stringify(commonItems));
+                renderItemDatalist();
+                syncAllToCloud();
+            }
+        }
+
+        function addItemRow(defaultName = '') {
+            const container = document.getElementById('itemList');
+            const div = document.createElement('div');
+            div.className = 'row item-row';
+            div.innerHTML = `
+                <input type="text" placeholder="品名 (輸入自動匹配歷史)" list="commonItemsDatalist" class="item-name" value="${defaultName}" style="flex: 1.8;" oninput="autoCalculate()">
+                <input type="number" placeholder="數量" class="item-qty" value="1" min="1" style="flex: 0.7;" oninput="autoCalculate()">
+                <input type="number" placeholder="單價" class="item-price" style="flex: 1.1;" oninput="autoCalculate()">
+                <span class="item-subtotal">小計: $0</span>
+                <button type="button" class="btn-del" onclick="removeItemRow(this)">刪除</button>
+            `;
+            container.appendChild(div);
+            autoCalculate();
+        }
+
+        function removeItemRow(btn) {
+            const rows = document.querySelectorAll('#itemList .item-row');
+            if (rows.length > 1) {
+                btn.closest('.item-row').remove();
+            } else {
+                alert("至少需保留一項品項！");
+            }
+            autoCalculate();
+        }
+
+        function updateMemberSequence() {
+            const seqElements = document.querySelectorAll('#memberList .member-seq');
+            seqElements.forEach((el, index) => {
+                el.innerText = `#${index + 1}`;
+            });
+        }
+
+        function addMemberRow(defaultName = '') {
+            const container = document.getElementById('memberList');
+            const tip = container.querySelector('.empty-tip');
+            if (tip) tip.remove();
+
+            const div = document.createElement('div');
+            div.className = 'member-item';
+            div.innerHTML = `
+                <span class="member-seq">#</span>
+                <input type="text" placeholder="角色名" class="member-name" value="${defaultName}" style="flex: 1.5; padding: 6px 8px; font-size: 13px;" oninput="autoCalculate()">
+                <input type="number" placeholder="補貼/扣除" class="member-offset" value="0" title="補貼(+)或扣除(-)" style="width: 85px; flex: none; padding: 6px 6px; font-size: 13px;" oninput="autoCalculate()">
+                <label class="checkbox-label" style="color:var(--accent-gold);">
+                    <input type="checkbox" class="member-donate" onchange="autoCalculate()"> 不領
+                </label>
+                <span class="member-share">分潤: $0</span>
+                <button type="button" class="btn-del" style="padding: 4px 8px; font-size: 12px;" onclick="this.closest('.member-item').remove(); autoCalculate(); updateMemberSequence();">✕</button>
+            `;
+            container.appendChild(div);
+            updateMemberSequence();
+            autoCalculate();
+        }
+
+        function getSavedHistoryTotalFund() {
+            return settlementHistory.reduce((sum, item) => {
+                if (item.status === 'completed' || !item.status) {
+                    return sum + (item.newFund || 0);
+                }
+                return sum;
+            }, 0);
+        }
+
+        function calculateAssetPools() {
+            let totalBuyCost = 0;
+            let totalSettledCost = 0;
+            let totalInvestmentProfit = 0;
+            let totalExpense = 0;
+            let totalSupplyPureIncome = 0;
+
+            investmentHistory.forEach(item => {
+                if (item.type === 'buy') {
+                    const cost = (item.unitPrice || 0) * (item.qty || 1);
+                    totalBuyCost += cost;
+                } else if (item.type === 'sell') {
+                    const cost = (item.unitCost !== undefined) 
+                        ? (item.unitCost * (item.qty || 1)) 
+                        : (item.originalCost || 0);
+                    const revenue = (item.unitPrice !== undefined && item.unitCost !== undefined) 
+                        ? (item.unitPrice * (item.qty || 1)) 
+                        : (item.totalRevenue || 0);
+                    
+                    if (item.isSupplyPureIncome) {
+                        totalSupplyPureIncome += revenue;
+                    } else {
+                        totalSettledCost += cost;
+                        totalInvestmentProfit += (revenue - cost);
+                    }
+                } else if (item.type === 'expense') {
+                    const amount = (item.unitPrice || 0) * (item.qty || 1);
+                    totalExpense += amount;
+                }
+            });
+
+            const totalStockCost = Math.max(0, totalBuyCost - totalSettledCost);
+
+            return { 
+                totalStockCost, 
+                totalInvestmentProfit, 
+                totalExpense, 
+                totalSupplyPureIncome 
+            };
+        }
+
+        function autoCalculate() {
+            const eventDate = document.getElementById('eventDate').value;
+            const eventLocation = document.getElementById('eventLocation').value || '團練';
+            const fundRate = parseFloat(document.getElementById('fundRate').value) || 0;
+            const settlementStatus = document.getElementById('settlementStatus').value;
+            
+            const rawRaidFundBase = getSavedHistoryTotalFund();
+            const { totalStockCost, totalInvestmentProfit, totalExpense, totalSupplyPureIncome } = calculateAssetPools();
+            
+            const totalGuildAccumulation = rawRaidFundBase + totalSupplyPureIncome;
+            const currentAvailableCash = totalGuildAccumulation + totalInvestmentProfit - totalStockCost - totalExpense;
+
+            const formattedTotal = `$${currentAvailableCash.toLocaleString()}`;
+            const formattedRaidBase = `$${rawRaidFundBase.toLocaleString()}`;
+            const formattedSupplyIncome = `$${totalSupplyPureIncome.toLocaleString()}`;
+            const formattedProfit = `${totalInvestmentProfit >= 0 ? '+' : ''}$${totalInvestmentProfit.toLocaleString()}`;
+            const formattedStockCost = `$${totalStockCost.toLocaleString()}`;
+
+            // 即時結算分頁儀表板
+            document.getElementById('historyTabMainFundDisplay').innerText = formattedTotal;
+            document.getElementById('historyTabRaidFundDisplay').innerText = formattedRaidBase;
+            document.getElementById('historyTabSupplyIncomeDisplay').innerText = formattedSupplyIncome;
+            const histProfitDisplay = document.getElementById('historyTabProfitPoolDisplay');
+            histProfitDisplay.innerText = formattedProfit;
+            histProfitDisplay.style.color = totalInvestmentProfit >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+            document.getElementById('historyTabStockCostDisplay').innerText = formattedStockCost;
+
+            // 物資投資分頁儀表板
+            document.getElementById('suppliesTabFundDisplay').innerText = formattedTotal;
+            document.getElementById('suppliesTabRaidFundDisplay').innerText = formattedRaidBase;
+            document.getElementById('suppliesTabSupplyIncomeDisplay').innerText = formattedSupplyIncome;
+            const profitPoolDisplay = document.getElementById('fundProfitPoolDisplay');
+            profitPoolDisplay.innerText = formattedProfit;
+            profitPoolDisplay.style.color = totalInvestmentProfit >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+            document.getElementById('fundStockCostDisplay').innerText = formattedStockCost;
+
+            const itemRows = document.querySelectorAll('#itemList .item-row');
+            let totalAmount = 0;
+            let itemsSummary = [];
+            let itemsData = [];
+
+            itemRows.forEach(row => {
+                const name = row.querySelector('.item-name').value.trim();
+                const qty = parseFloat(row.querySelector('.item-qty').value) || 1;
+                const price = parseFloat(row.querySelector('.item-price').value) || 0;
+                const subtotalDisplay = row.querySelector('.item-subtotal');
+                
+                const lineTotal = price > 0 ? qty * price : 0;
+                subtotalDisplay.innerText = `小計: $${lineTotal.toLocaleString()}`;
+
+                itemsData.push({ name, qty, price });
+
+                if (price > 0) {
+                    totalAmount += lineTotal;
+                    const itemDesc = qty > 1 ? `${name || '品項'}x${qty} ($${lineTotal.toLocaleString()})` : `${name || '品項'} ($${lineTotal.toLocaleString})`;
+                    itemsSummary.push(itemDesc);
+                }
+            });
+
+            const memberContainer = document.getElementById('memberList');
+            const memberRows = document.querySelectorAll('#memberList .member-item');
+            
+            if (memberRows.length === 0) {
+                memberContainer.innerHTML = '<div class="empty-tip">尚未加入成員，請使用上方下拉選單或直接輸入新增。</div>';
+            }
+
+            let members = [];
+            memberRows.forEach(row => {
+                const nameInput = row.querySelector('.member-name');
+                const name = nameInput ? nameInput.value.trim() : '';
+                const offset = parseFloat(row.querySelector('.member-offset').value) || 0;
+                const donate = row.querySelector('.member-donate').checked;
+
+                if (name) {
+                    members.push({ name, offset, donate, element: row });
+                } else if (row.querySelector('.member-share')) {
+                    row.querySelector('.member-share').innerText = `分潤: $0`;
+                }
+            });
+
+            document.getElementById('previewTotal').innerText = `$${totalAmount.toLocaleString()}`;
+            document.getElementById('previewCount').innerText = members.length;
+
+            if (members.length === 0 || (totalAmount === 0 && settlementStatus === 'completed')) {
+                document.getElementById('previewPerPerson').innerText = '$0';
+                document.getElementById('previewCalcDetail').innerText = '均分 $0 (去零 -$0)';
+                document.getElementById('resultText').innerText = "請輸入品項金額與成員...";
+                currentCalculatedData = null;
+                return;
+            }
+
+            const isPending = settlementStatus === 'pending';
+            const fundAmount = isPending ? 0 : Math.floor(totalAmount * (fundRate / 100));
+            const remainAmount = isPending ? 0 : totalAmount - fundAmount;
+            
+            const rawPerPerson = members.length > 0 && !isPending ? Math.floor(remainAmount / members.length) : 0;
+            const basePerPerson = Math.floor(rawPerPerson / 100) * 100;
+            const perPersonCut = rawPerPerson - basePerPerson;
+            const remainder = !isPending ? remainAmount - (basePerPerson * members.length) : 0;
+
+            document.getElementById('previewPerPerson').innerText = isPending ? '待售中' : `$${basePerPerson.toLocaleString()}`;
+            document.getElementById('previewCalcDetail').innerText = isPending 
+                ? '待售中' 
+                : `均分 $${rawPerPerson.toLocaleString()} (去零 -$${perPersonCut.toLocaleString()})`;
+
+            let donatedTotal = 0;
+            let memberDetails = [];
+            let recordMembersData = [];
+
+            members.forEach(m => {
+                let finalGet = basePerPerson + m.offset;
+                const shareDisplay = m.element.querySelector('.member-share');
+
+                if (isPending) {
+                    shareDisplay.innerText = `待售出`;
+                    shareDisplay.style.color = 'var(--accent-gold)';
+                    memberDetails.push(`${m.name}: 待售中`);
+                    recordMembersData.push({ name: m.name, offset: m.offset, amount: 0, claimed: false, donate: m.donate });
+                } else if (m.donate) {
+                    donatedTotal += finalGet;
+                    shareDisplay.innerText = `捐公積金`;
+                    shareDisplay.style.color = 'var(--accent-gold)';
+                    memberDetails.push(`${m.name}: $0 (捐贈)`);
+                    recordMembersData.push({ name: m.name, offset: m.offset, amount: 0, claimed: true, donate: true });
+                } else {
+                    shareDisplay.innerText = `實得: $${finalGet.toLocaleString()}`;
+                    shareDisplay.style.color = 'var(--accent-green)';
+                    memberDetails.push(`${m.name}: $${finalGet.toLocaleString()}`);
+                    recordMembersData.push({ name: m.name, offset: m.offset, amount: finalGet, claimed: false, donate: false });
+                }
+            });
+
+            const totalNewFund = isPending ? 0 : fundAmount + remainder + donatedTotal;
+            const expectedFundTotal = rawRaidFundBase + totalNewFund;
+
+            let output = `⚔️【團練結算】${eventDate} (${eventLocation}) ${isPending ? '【📦 待售出暫存】' : ''}\n`;
+            output += `📦 品項：${itemsSummary.length > 0 ? itemsSummary.join('、') : '尚未售出/標價'}\n`;
+            output += `💰 總額：$${totalAmount.toLocaleString()} | 👥 人數：${members.length}人\n`;
+            if (!isPending) {
+                output += `🏛️ 公積金抽成 (${fundRate}%)：-$${fundAmount.toLocaleString()} (分配餘額 $${remainAmount.toLocaleString()})\n`;
+                output += `📊 每人原始均分：$${rawPerPerson.toLocaleString()} (每人去零 -$${perPersonCut.toLocaleString()} ➔ 實得 $${basePerPerson.toLocaleString()})\n`;
+            }
+            output += `-----------------------------------\n`;
+            output += memberDetails.join('\n') + '\n';
+            output += `-----------------------------------\n`;
+            if (remainder > 0 && !isPending) {
+                output += `💡 自動歸公零頭：+$${remainder.toLocaleString()} (去零 $${perPersonCut.toLocaleString()} × ${members.length}人 + 餘額)\n`;
+            }
+            if (!isPending) {
+                output += `🏛️ 本次新增公積金：+$${totalNewFund.toLocaleString()}\n`;
+                output += `🏛️ 團練積累總額：$${expectedFundTotal.toLocaleString()}`;
+            } else {
+                output += `⏳ 提示：本單暫存中，售出後於紀錄區點選編輯轉為正式結算。`;
+            }
+
+            document.getElementById('resultText').innerText = output;
+
+            currentCalculatedData = {
+                id: Date.now(),
+                date: eventDate,
+                location: eventLocation,
+                status: settlementStatus,
+                fundRate: fundRate,
+                items: itemsData,
+                totalAmount: totalAmount,
+                memberCount: members.length,
+                newFund: totalNewFund,
+                members: recordMembersData,
+                text: output
+            };
+        }
+
+        function saveCurrentRecord() {
+            if (!currentCalculatedData) {
+                alert("請先輸入品項或成員！");
+                return false;
+            }
+
+            const itemRows = document.querySelectorAll('#itemList .item-row');
+            itemRows.forEach(row => {
+                const name = row.querySelector('.item-name').value.trim();
+                if (name) saveItemToHistory(name);
+            });
+
+            settlementHistory.push(JSON.parse(JSON.stringify(currentCalculatedData)));
+            localStorage.setItem('heaven_settlement_history', JSON.stringify(settlementHistory));
+
+            renderHistoryList();
+            renderPendingOverview();
+            autoCalculate();
+            syncAllToCloud();
+            alert("結算紀錄已成功儲存並同步至雲端！");
+            return true;
+        }
+
+        function copyResult() {
+            if (!currentCalculatedData) {
+                alert("請先輸入品項或成員！");
+                return;
+            }
+
+            saveCurrentRecord();
+
+            navigator.clipboard.writeText(currentCalculatedData.text).then(() => {
+                alert("已成功複製明細並同步至雲端！");
+            });
+        }
+
+        function renderPendingOverview() {
+            const container = document.getElementById('pendingMembersOverviewList');
+            const badge = document.getElementById('pendingSummaryBadge');
+            container.innerHTML = '';
+
+            let memberPendingMap = {};
+            let grandTotal = 0;
+
+            settlementHistory.forEach((rec, recIdx) => {
+                if (rec.status === 'completed' || !rec.status) {
+                    if (rec.members) {
+                        rec.members.forEach((m, memIdx) => {
+                            if (!m.claimed && !m.donate && m.amount > 0) {
+                                if (!memberPendingMap[m.name]) {
+                                    memberPendingMap[m.name] = {
+                                        totalAmount: 0,
+                                        events: []
+                                    };
+                                }
+                                memberPendingMap[m.name].totalAmount += m.amount;
+                                memberPendingMap[m.name].events.push({
+                                    recIdx: recIdx,
+                                    memIdx: memIdx,
+                                    date: rec.date,
+                                    location: rec.location,
+                                    amount: m.amount
+                                });
+                                grandTotal += m.amount;
+                            }
+                        });
+                    }
+                }
+            });
+
+            const memberNames = Object.keys(memberPendingMap);
+            badge.innerText = `${memberNames.length} 人待領 / 總計 $${grandTotal.toLocaleString()}`;
+
+            if (memberNames.length === 0) {
+                container.innerHTML = '<div style="font-size:12px; color:var(--text-muted); text-align:center; padding:10px 0;">🎉 所有正式結算成員款項皆已領取完畢！</div>';
+                return;
+            }
+
+            memberNames.forEach((name, idx) => {
+                const data = memberPendingMap[name];
+                const div = document.createElement('div');
+                div.className = 'pending-member-row';
+                div.innerHTML = `
+                    <div style="flex: 1.2;">
+                        <span style="color:var(--accent-gold); font-weight:bold; font-family:monospace;">#${idx+1}</span>
+                        <strong style="color:var(--text-main); margin-left:4px;">${name}</strong>
+                        <span style="font-size:11px; color:var(--text-muted); margin-left:4px;">(${data.events.length} 場)</span>
+                    </div>
+                    <div style="flex: 1; text-align: right; font-weight: bold; color: var(--accent-green); font-family:monospace;">
+                        $${data.totalAmount.toLocaleString()}
+                    </div>
+                    <div style="margin-left: 10px; display: flex; gap: 4px;">
+                        <button type="button" class="btn-secondary" style="padding: 3px 6px; font-size: 11px;" onclick="copyMemberPendingSummary('${name}')">催款通知</button>
+                        <button type="button" class="btn-secondary" style="padding: 3px 6px; font-size: 11px; color:var(--accent-green); border-color:rgba(16,185,129,0.3);" onclick="claimAllForMember('${name}')">全核銷</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function copyMemberPendingSummary(memberName) {
+            let total = 0;
+            let eventLines = [];
+
+            settlementHistory.forEach(rec => {
+                if ((rec.status === 'completed' || !rec.status) && rec.members) {
+                    rec.members.forEach(m => {
+                        if (m.name === memberName && !m.claimed && !m.donate && m.amount > 0) {
+                            total += m.amount;
+                            eventLines.push(`• ${rec.date} (${rec.location})：$${m.amount.toLocaleString()}`);
+                        }
+                    });
+                }
+            });
+
+            if (eventLines.length === 0) {
+                alert(`${memberName} 目前沒有未領款項！`);
+                return;
+            }
+
+            let text = `【領款提醒】${memberName} 您目前共有 ${eventLines.length} 筆團練款項待領，總計 $${total.toLocaleString()}：\n`;
+            text += eventLines.join('\n');
+
+            navigator.clipboard.writeText(text).then(() => {
+                alert(`已複製 ${memberName} 的催款明細通知！`);
+            });
+        }
+
+        function claimAllForMember(memberName) {
+            if (!confirm(`確定要將【${memberName}】的所有待領款項一次性標記為已領取嗎？`)) return;
+
+            let updatedCount = 0;
+            settlementHistory.forEach(rec => {
+                if ((rec.status === 'completed' || !rec.status) && rec.members) {
+                    rec.members.forEach(m => {
+                        if (m.name === memberName && !m.claimed && !m.donate && m.amount > 0) {
+                            m.claimed = true;
+                            updatedCount++;
+                        }
+                    });
+                }
+            });
+
+            if (updatedCount > 0) {
+                localStorage.setItem('heaven_settlement_history', JSON.stringify(settlementHistory));
+                renderHistoryList();
+                renderPendingOverview();
+                syncAllToCloud();
+                alert(`已成功核銷 ${memberName} 的 ${updatedCount} 筆款項！`);
+            }
+        }
+
+        function renderHistoryList() {
+            const container = document.getElementById('historyList');
+            container.innerHTML = '';
+
+            if (settlementHistory.length === 0) {
+                container.innerHTML = '<div class="empty-tip">尚無結算紀錄</div>';
+                return;
+            }
+
+            settlementHistory.forEach((item, recIdx) => {
+                const isCompleted = item.status === 'completed' || !item.status;
+
+                if (!item.members || item.members.length === 0) {
+                    item.members = parseMembersFromText(item.text);
+                }
+
+                let pendingAmount = 0;
+                let claimedCount = 0;
+                const totalMem = item.members ? item.members.length : 0;
+
+                if (item.members) {
+                    item.members.forEach(m => {
+                        if (m.claimed || m.donate) claimedCount++;
+                        else pendingAmount += m.amount;
+                    });
+                }
+
+                const card = document.createElement('div');
+                card.className = 'history-card';
+
+                const badgeHtml = isCompleted 
+                    ? `<span class="status-badge completed">⚡ 已結算</span>`
+                    : `<span class="status-badge pending">🟡 待售中</span>`;
+
+                let html = `
+                    <div class="history-card-header">
+                        <div>
+                            <div class="history-date">${recIdx + 1}. ${item.date} (${item.location}) ${badgeHtml}</div>
+                            <div class="history-sub">總額: $${item.totalAmount.toLocaleString()} | 團練積累: ${isCompleted ? `+$${(item.newFund||0).toLocaleString()}` : '待計'}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 13px; font-weight: bold; color: ${claimedCount===totalMem && totalMem>0 ? 'var(--accent-green)' : 'var(--accent-gold)'}">
+                                ${isCompleted ? `${claimedCount}/${totalMem} 人已領` : '尚未發款'}
+                            </div>
+                            <div style="font-size: 11px; color: var(--text-muted)">
+                                ${isCompleted ? `待發放: $${pendingAmount.toLocaleString()}` : '待售出後結算'}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="history-btn-group">
+                        <button type="button" class="btn-secondary" onclick="openEditModal(${recIdx})">✏️ 編輯與核銷</button>
+                        ${isCompleted ? `<button type="button" class="btn-secondary" onclick="copyPendingMembers(${recIdx})">複製未領名單</button>` : ''}
+                        <button type="button" class="btn-secondary" onclick="viewHistoryDetail(${recIdx})">原始明細</button>
+                        <button type="button" class="btn-del" onclick="deleteHistoryItem(${recIdx})">刪除</button>
+                    </div>
+                `;
+
+                card.innerHTML = html;
+                container.appendChild(card);
+            });
+        }
+
+        function parseMembersFromText(text) {
+            if (!text) return [];
+            let members = [];
+            const lines = text.split('\n');
+            let isMemberSection = false;
+
+            for (let line of lines) {
+                line = line.trim();
+                if (line.startsWith('---')) {
+                    isMemberSection = !isMemberSection;
+                    continue;
+                }
+                if (isMemberSection && line.includes(':')) {
+                    const parts = line.split(':');
+                    const name = parts[0].trim();
+                    const valStr = parts[1].trim();
+                    const isDonate = valStr.includes('捐贈');
+                    const numMatch = valStr.replace(/,/g, '').match(/\d+/);
+                    const amount = numMatch ? parseInt(numMatch[0]) : 0;
+
+                    members.push({
+                        name: name,
+                        offset: 0,
+                        amount: isDonate ? 0 : amount,
+                        claimed: isDonate,
+                        donate: isDonate
+                    });
+                }
+            }
+            return members;
+        }
+
+        function parseItemsFromText(text) {
+            if (!text) return [{ name: '', qty: 1, price: 0 }];
+            const match = text.match(/📦 品項：(.*)/);
+            if (!match || !match[1] || match[1].includes('尚未售出')) return [{ name: '', qty: 1, price: 0 }];
+            
+            const rawItems = match[1].split('、');
+            let items = [];
+            rawItems.forEach(str => {
+                let name = str.split('(')[0].trim();
+                let qty = 1;
+                if (name.includes('x')) {
+                    const parts = name.split('x');
+                    name = parts[0];
+                    qty = parseInt(parts[1]) || 1;
+                }
+                const priceMatch = str.match(/\$(\d[\d,]*)/);
+                const totalLinePrice = priceMatch ? parseInt(priceMatch[1].replace(/,/g, '')) : 0;
+                const unitPrice = qty > 0 ? Math.round(totalLinePrice / qty) : totalLinePrice;
+                items.push({ name, qty, price: unitPrice });
+            });
+            return items.length > 0 ? items : [{ name: '', qty: 1, price: 0 }];
+        }
+
+        function openEditModal(recIdx) {
+            let record = settlementHistory[recIdx];
+            if (!record) return;
+
+            if (!record.members || record.members.length === 0) {
+                record.members = parseMembersFromText(record.text);
+            }
+            if (!record.items || record.items.length === 0) {
+                record.items = parseItemsFromText(record.text);
+            }
+            if (record.fundRate === undefined) {
+                record.fundRate = 5;
+            }
+
+            document.getElementById('editRecordIndex').value = recIdx;
+            document.getElementById('editLocation').value = record.location || '';
+            document.getElementById('editStatus').value = record.status || 'completed';
+            document.getElementById('editFundRate').value = record.fundRate;
+
+            renderEditItems(record.items);
+            renderEditMembers(record.members);
+            recalculateEditModal();
+
+            document.getElementById('editModal').style.display = 'flex';
+        }
+
+        function renderEditItems(items) {
+            const container = document.getElementById('editItemList');
+            container.innerHTML = '';
+            items.forEach((item) => {
+                const div = document.createElement('div');
+                div.className = 'row edit-item-row';
+                div.innerHTML = `
+                    <input type="text" placeholder="品名" list="commonItemsDatalist" class="edit-item-name" value="${item.name || ''}" style="flex: 1.5; padding: 6px 8px; font-size: 13px;" oninput="recalculateEditModal()">
+                    <input type="number" placeholder="數量" class="edit-item-qty" value="${item.qty || 1}" min="1" style="width: 60px; flex: none; padding: 6px 6px; font-size: 13px;" oninput="recalculateEditModal()">
+                    <input type="number" placeholder="單價" class="edit-item-price" value="${item.price || 0}" min="0" style="flex: 1; padding: 6px 8px; font-size: 13px;" oninput="recalculateEditModal()">
+                    <button type="button" class="btn-del" style="padding: 4px 8px; font-size: 12px;" onclick="removeEditItemRow(this)">✕</button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function addEditItemRow() {
+            const container = document.getElementById('editItemList');
+            const div = document.createElement('div');
+            div.className = 'row edit-item-row';
+            div.innerHTML = `
+                <input type="text" placeholder="品名" list="commonItemsDatalist" class="edit-item-name" value="" style="flex: 1.5; padding: 6px 8px; font-size: 13px;" oninput="recalculateEditModal()">
+                <input type="number" placeholder="數量" class="edit-item-qty" value="1" min="1" style="width: 60px; flex: none; padding: 6px 6px; font-size: 13px;" oninput="recalculateEditModal()">
+                <input type="number" placeholder="單價" class="edit-item-price" value="0" min="0" style="flex: 1; padding: 6px 8px; font-size: 13px;" oninput="recalculateEditModal()">
+                <button type="button" class="btn-del" style="padding: 4px 8px; font-size: 12px;" onclick="removeEditItemRow(this)">✕</button>
+            `;
+            container.appendChild(div);
+            recalculateEditModal();
+        }
+
+        function removeEditItemRow(btn) {
+            const rows = document.querySelectorAll('.edit-item-row');
+            if (rows.length > 1) {
+                btn.closest('.edit-item-row').remove();
+            } else {
+                alert("至少需保留一個品項！");
+            }
+            recalculateEditModal();
+        }
+
+        function renderEditMembers(members) {
+            const memberContainer = document.getElementById('editMemberList');
+            memberContainer.innerHTML = '';
+
+            if (members && members.length > 0) {
+                members.forEach((m, memIdx) => {
+                    const isChecked = m.claimed || m.donate;
+                    const rowDiv = document.createElement('div');
+                    rowDiv.className = 'edit-member-row-item';
+                    rowDiv.innerHTML = `
+                        <div style="display:flex; align-items:center; gap:6px; flex: 1.2;">
+                            <span style="color:var(--accent-gold); font-weight:bold; font-family:monospace; font-size:12px;">#${memIdx+1}</span>
+                            <strong style="color:var(--text-main); font-size:14px;">${m.name}</strong>
+                            <span class="edit-member-amount-display" style="color:var(--text-muted); font-size:12px;">應發：$${m.amount.toLocaleString()}</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <label class="checkbox-label" style="color:var(--accent-gold);">
+                                <input type="checkbox" class="modal-donate-checkbox" data-mem-idx="${memIdx}" ${m.donate ? 'checked' : ''} onchange="handleModalDonateToggle(${memIdx}, this.checked)"> 不領/捐贈
+                            </label>
+                            <label class="checkbox-label modal-claim-label" style="color: ${isChecked ? 'var(--accent-green)' : 'var(--accent-gold)'}; font-weight: bold; min-width:80px;">
+                                <input type="checkbox" class="modal-claimed-checkbox" data-mem-idx="${memIdx}" ${isChecked ? 'checked' : ''} ${m.donate ? 'disabled' : ''} onchange="handleModalClaimToggle(this)">
+                                <span class="claim-status-text">${m.donate ? '✅ 公會已領' : (isChecked ? '✅ 已領取' : '⏳ 待領取')}</span>
+                            </label>
+                        </div>
+                    `;
+                    memberContainer.appendChild(rowDiv);
+                });
+            } else {
+                memberContainer.innerHTML = `<div style="font-size: 13px; color: var(--text-muted); text-align: center; padding: 10px 0;">無成員紀錄</div>`;
+            }
+        }
+
+        function handleModalDonateToggle(memIdx, isDonated) {
+            const claimCheckbox = document.querySelector(`.modal-claimed-checkbox[data-mem-idx="${memIdx}"]`);
+            const statusText = claimCheckbox.parentElement.querySelector('.claim-status-text');
+            
+            if (isDonated) {
+                claimCheckbox.checked = true;
+                claimCheckbox.disabled = true;
+                claimCheckbox.parentElement.style.color = 'var(--accent-green)';
+                statusText.innerText = '✅ 公會已領';
+            } else {
+                claimCheckbox.disabled = false;
+                claimCheckbox.checked = false;
+                claimCheckbox.parentElement.style.color = 'var(--accent-gold)';
+                statusText.innerText = '⏳ 待領取';
+            }
+            recalculateEditModal();
+        }
+
+        function handleModalClaimToggle(chkElem) {
+            const label = chkElem.parentElement;
+            const text = label.querySelector('.claim-status-text');
+            if (chkElem.checked) {
+                label.style.color = 'var(--accent-green)';
+                text.innerText = '✅ 已領取';
+            } else {
+                label.style.color = 'var(--accent-gold)';
+                text.innerText = '⏳ 待領取';
+            }
+        }
+
+        function recalculateEditModal() {
+            const recIdx = parseInt(document.getElementById('editRecordIndex').value);
+            const record = settlementHistory[recIdx];
+            if (!record) return;
+
+            const status = document.getElementById('editStatus').value;
+            const fundRate = parseFloat(document.getElementById('editFundRate').value) || 0;
+            const isPending = status === 'pending';
+
+            const itemRows = document.querySelectorAll('.edit-item-row');
+            let totalAmount = 0;
+
+            itemRows.forEach(row => {
+                const qty = parseFloat(row.querySelector('.edit-item-qty').value) || 1;
+                const price = parseFloat(row.querySelector('.edit-item-price').value) || 0;
+                if (price > 0) totalAmount += (qty * price);
+            });
+
+            const memCount = record.members ? record.members.length : 0;
+            const fundAmount = isPending ? 0 : Math.floor(totalAmount * (fundRate / 100));
+            const remainAmount = isPending ? 0 : totalAmount - fundAmount;
+            
+            const rawPerPerson = memCount > 0 && !isPending ? Math.floor(remainAmount / memCount) : 0;
+            const basePerPerson = Math.floor(rawPerPerson / 100) * 100;
+            const perPersonCut = rawPerPerson - basePerPerson;
+            const remainder = !isPending ? remainAmount - (basePerPerson * memCount) : 0;
+
+            let donatedTotal = 0;
+            const amountDisplays = document.querySelectorAll('.edit-member-amount-display');
+            const donateCheckboxes = document.querySelectorAll('.modal-donate-checkbox');
+
+            if (record.members) {
+                record.members.forEach((m, idx) => {
+                    const offset = m.offset || 0;
+                    const finalGet = basePerPerson + offset;
+                    const isDonated = donateCheckboxes[idx] ? donateCheckboxes[idx].checked : m.donate;
+
+                    if (isDonated) {
+                        if (!isPending) donatedTotal += finalGet;
+                        if (amountDisplays[idx]) amountDisplays[idx].innerText = '應發：$0 (捐贈)';
+                    } else if (amountDisplays[idx]) {
+                        amountDisplays[idx].innerText = isPending ? '應發：待售出' : `應發：$${finalGet.toLocaleString()}`;
+                    }
+                });
+            }
+
+            const totalNewFund = isPending ? 0 : fundAmount + remainder + donatedTotal;
+
+            document.getElementById('editPreviewTotal').innerText = `$${totalAmount.toLocaleString()}`;
+            document.getElementById('editPreviewPerPerson').innerText = isPending ? '待售中' : `$${basePerPerson.toLocaleString()}`;
+            document.getElementById('editPreviewCalcDetail').innerText = isPending 
+                ? '待售中' 
+                : `均分 $${rawPerPerson.toLocaleString()} (去零 -$${perPersonCut.toLocaleString()})`;
+            document.getElementById('editPreviewFund').innerText = `+$${totalNewFund.toLocaleString()}`;
+        }
+
+        function saveEditedRecord() {
+            const recIdx = parseInt(document.getElementById('editRecordIndex').value);
+            if (isNaN(recIdx) || !settlementHistory[recIdx]) return;
+
+            const record = settlementHistory[recIdx];
+            const newLocation = document.getElementById('editLocation').value.trim() || '團練';
+            const newStatus = document.getElementById('editStatus').value;
+            const newFundRate = parseFloat(document.getElementById('editFundRate').value) || 0;
+            const isPending = newStatus === 'pending';
+
+            let updatedItems = [];
+            let totalAmount = 0;
+            let itemsSummary = [];
+
+            const itemRows = document.querySelectorAll('.edit-item-row');
+            itemRows.forEach(row => {
+                const name = row.querySelector('.edit-item-name').value.trim();
+                const qty = parseFloat(row.querySelector('.edit-item-qty').value) || 1;
+                const price = parseFloat(row.querySelector('.edit-item-price').value) || 0;
+                
+                updatedItems.push({ name, qty, price });
+                if (name) saveItemToHistory(name);
+
+                if (price > 0) {
+                    const lineTotal = qty * price;
+                    totalAmount += lineTotal;
+                    const itemDesc = qty > 1 ? `${name || '品項'}x${qty} ($${lineTotal.toLocaleString()})` : `${name || '品項'} ($${lineTotal.toLocaleString()})`;
+                    itemsSummary.push(itemDesc);
+                }
+            });
+
+            const memCount = record.members ? record.members.length : 0;
+            const fundAmount = isPending ? 0 : Math.floor(totalAmount * (newFundRate / 100));
+            const remainAmount = isPending ? 0 : totalAmount - fundAmount;
+            
+            const rawPerPerson = memCount > 0 && !isPending ? Math.floor(remainAmount / memCount) : 0;
+            const basePerPerson = Math.floor(rawPerPerson / 100) * 100;
+            const perPersonCut = rawPerPerson - basePerPerson;
+            const remainder = !isPending ? remainAmount - (basePerPerson * memCount) : 0;
+
+            let donatedTotal = 0;
+            let memberDetails = [];
+
+            const donateCheckboxes = document.querySelectorAll('.modal-donate-checkbox');
+            const claimCheckboxes = document.querySelectorAll('.modal-claimed-checkbox');
+
+            if (record.members) {
+                record.members.forEach((m, memIdx) => {
+                    const offset = m.offset || 0;
+                    const finalGet = basePerPerson + offset;
+                    const isDonated = donateCheckboxes[memIdx] ? donateCheckboxes[memIdx].checked : false;
+                    const isClaimed = claimCheckboxes[memIdx] ? claimCheckboxes[memIdx].checked : false;
+
+                    m.donate = isDonated;
+                    m.claimed = isDonated ? true : isClaimed;
+
+                    if (isPending) {
+                        m.amount = 0;
+                        memberDetails.push(`${m.name}: 待售中`);
+                    } else if (isDonated) {
+                        m.amount = 0;
+                        donatedTotal += finalGet;
+                        memberDetails.push(`${m.name}: $0 (捐贈)`);
+                    } else {
+                        m.amount = finalGet;
+                        memberDetails.push(`${m.name}: $${finalGet.toLocaleString()}`);
+                    }
+                });
+            }
+
+            const totalNewFund = isPending ? 0 : fundAmount + remainder + donatedTotal;
+
+            let output = `⚔️【團練結算】${record.date} (${newLocation}) ${isPending ? '【📦 待售出暫存】' : ''}\n`;
+            output += `📦 品項：${itemsSummary.length > 0 ? itemsSummary.join('、') : '尚未售出/標價'}\n`;
+            output += `💰 總額：$${totalAmount.toLocaleString()} | 👥 人數：${memCount}人\n`;
+            if (!isPending) {
+                output += `🏛️ 公積金抽成 (${newFundRate}%)：-$${fundAmount.toLocaleString()} (分配餘額 $${remainAmount.toLocaleString()})\n`;
+                output += `📊 每人原始均分：$${rawPerPerson.toLocaleString()} (每人去零 -$${perPersonCut.toLocaleString()} ➔ 實得 $${basePerPerson.toLocaleString()})\n`;
+            }
+            output += `-----------------------------------\n`;
+            output += memberDetails.join('\n') + '\n';
+            output += `-----------------------------------\n`;
+            if (remainder > 0 && !isPending) {
+                output += `💡 自動歸公零頭：+$${remainder.toLocaleString()} (去零 $${perPersonCut.toLocaleString()} × ${memCount}人 + 餘額)\n`;
+            }
+            if (!isPending) {
+                output += `🏛️ 本次新增公積金：+$${totalNewFund.toLocaleString()}\n`;
+            } else {
+                output += `⏳ 提示：本單暫存中，售出後於紀錄區點選編輯轉為正式結算。`;
+            }
+
+            record.location = newLocation;
+            record.status = newStatus;
+            record.fundRate = newFundRate;
+            record.items = updatedItems;
+            record.totalAmount = totalAmount;
+            record.newFund = totalNewFund;
+            record.text = output;
+
+            localStorage.setItem('heaven_settlement_history', JSON.stringify(settlementHistory));
+
+            closeEditModal();
+            renderHistoryList();
+            renderPendingOverview();
+            autoCalculate();
+            syncAllToCloud();
+            alert("結算紀錄與價格已成功更新並同步！");
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').style.display = 'none';
+        }
+
+        function copyPendingMembers(recIdx) {
+            const record = settlementHistory[recIdx];
+            if (!record || !record.members) return;
+
+            const pending = record.members.filter(m => !m.claimed && !m.donate);
+            if (pending.length === 0) {
+                alert("這筆團練的所有成員皆已領取完畢！");
+                return;
+            }
+
+            let pendingText = `【待領款提醒】${record.date} (${record.location})\n`;
+            pending.forEach(m => {
+                pendingText += `• ${m.name}：$${m.amount.toLocaleString()}\n`;
+            });
+
+            navigator.clipboard.writeText(pendingText).then(() => {
+                alert("已複製催款名單至剪貼簿！");
+            });
+        }
+
+        function viewHistoryDetail(index) {
+            const record = settlementHistory[index];
+            if (!record) return;
+
+            document.getElementById('modalTitle').innerText = `📋 原始明細 (${record.date})`;
+            document.getElementById('modalText').innerText = record.text;
+            document.getElementById('detailModal').style.display = 'flex';
+        }
+
+        function copyModalText() {
+            const text = document.getElementById('modalText').innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                alert("已複製該筆明細！");
+            });
+        }
+
+        function closeModal() {
+            document.getElementById('detailModal').style.display = 'none';
+        }
+
+        function deleteHistoryItem(index) {
+            if (confirm("確定要刪除這筆紀錄嗎？（公積金總額與待領統計將精確回扣）")) {
+                settlementHistory.splice(index, 1);
+                localStorage.setItem('heaven_settlement_history', JSON.stringify(settlementHistory));
+                renderHistoryList();
+                renderPendingOverview();
+                autoCalculate();
+                syncAllToCloud();
+            }
+        }
+
+        function clearAllHistory() {
+            if (confirm("確定要清空所有結算紀錄嗎？（公積金總額將全數歸零）")) {
+                settlementHistory = [];
+                localStorage.removeItem('heaven_settlement_history');
+                renderHistoryList();
+                renderPendingOverview();
+                autoCalculate();
+                syncAllToCloud();
+            }
+        }
+
+        /* ---------------- 公積金投資與交易邏輯 ---------------- */
+        function toggleInvestFields() {
+            const type = document.getElementById('investType').value;
+            const fieldBuyExpense = document.getElementById('fieldBuyExpense');
+            const fieldSellProfit = document.getElementById('fieldSellProfit');
+            const labelUnitPrice = document.getElementById('labelUnitPrice');
+
+            if (type === 'sell') {
+                fieldBuyExpense.style.display = 'none';
+                fieldSellProfit.style.display = 'block';
+            } else {
+                fieldBuyExpense.style.display = 'flex';
+                fieldSellProfit.style.display = 'none';
+                if (type === 'expense') {
+                    labelUnitPrice.innerText = "花費單價 ($)";
+                } else {
+                    labelUnitPrice.innerText = "買進單價 ($)";
+                }
+            }
+            calcInvestTotal();
+        }
+
+        function calcInvestTotal() {
+            const type = document.getElementById('investType').value;
+            const previewLabel = document.getElementById('investPreviewLabel');
+
+            if (type === 'sell') {
+                const unitCost = parseFloat(document.getElementById('sellUnitCost').value) || 0;
+                const unitPrice = parseFloat(document.getElementById('sellUnitPrice').value) || 0;
+                const qty = parseFloat(document.getElementById('sellQty').value) || 1;
+                
+                const totalCost = unitCost * qty;
+                const totalRevenue = unitPrice * qty;
+                const profit = totalRevenue - totalCost;
+                const label = profit >= 0 ? '獲利' : '虧損';
+                
+                previewLabel.innerHTML = `成本：<strong>$${totalCost.toLocaleString()}</strong> ➔ 實收：<strong>$${totalRevenue.toLocaleString()}</strong>（${label}：<strong style="color:${profit>=0?'var(--accent-green)':'var(--accent-red)'}">${profit>=0?'+':''}$${profit.toLocaleString()}</strong>）`;
+            } else {
+                const unitPrice = parseFloat(document.getElementById('investUnitPrice').value) || 0;
+                const qty = parseFloat(document.getElementById('investQty').value) || 1;
+                const total = unitPrice * qty;
+                previewLabel.innerHTML = `總額試算：<strong id="investTotalPreview" style="color:var(--accent-gold);">$${total.toLocaleString()}</strong>`;
+            }
+        }
+
+        function addInvestRecord() {
+            const date = document.getElementById('investDate').value;
+            const type = document.getElementById('investType').value;
+            const item = document.getElementById('investItem').value.trim();
+            const profitNote = document.getElementById('investProfit').value.trim();
+
+            if (!item) {
+                alert("請填寫交易標的名稱！");
+                return;
+            }
+
+            let record = {
+                id: Date.now(),
+                date: date,
+                type: type,
+                item: item,
+                profitNote: profitNote || '-'
+            };
+
+            if (type === 'sell') {
+                const unitCost = parseFloat(document.getElementById('sellUnitCost').value) || 0;
+                const unitPrice = parseFloat(document.getElementById('sellUnitPrice').value) || 0;
+                const qty = parseFloat(document.getElementById('sellQty').value) || 1;
+                
+                if (unitPrice <= 0) {
+                    alert("請填寫有效的賣出成交單價！");
+                    return;
+                }
+                record.unitCost = unitCost;
+                record.unitPrice = unitPrice;
+                record.qty = qty;
+            } else {
+                const unitPrice = parseFloat(document.getElementById('investUnitPrice').value) || 0;
+                const qty = parseFloat(document.getElementById('investQty').value) || 1;
+                if (unitPrice <= 0) {
+                    alert("請填寫有效單價！");
+                    return;
+                }
+                record.unitPrice = unitPrice;
+                record.qty = qty;
+            }
+
+            investmentHistory.push(record);
+            localStorage.setItem('heaven_investment_history', JSON.stringify(investmentHistory));
+
+            document.getElementById('investItem').value = '';
+            document.getElementById('investUnitPrice').value = '';
+            document.getElementById('investQty').value = '1';
+            document.getElementById('sellUnitCost').value = '';
+            document.getElementById('sellUnitPrice').value = '';
+            document.getElementById('sellQty').value = '1';
+            document.getElementById('investProfit').value = '';
+            calcInvestTotal();
+
+            renderInvestmentsList();
+            autoCalculate();
+            syncAllToCloud();
+            alert("投資交易已成功紀錄並同步！");
+        }
+
+        function renderInvestmentsList() {
+            const tbody = document.getElementById('investListTable');
+            tbody.innerHTML = '';
+
+            if (investmentHistory.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="empty-tip">目前無投資或交易紀錄</td></tr>`;
+                return;
+            }
+
+            investmentHistory.forEach((record, index) => {
+                let typeLabel = '';
+                let typeColor = '';
+                let amountDisplay = '';
+
+                if (record.type === 'buy') {
+                    const total = (record.unitPrice || 0) * (record.qty || 1);
+                    typeLabel = '買進 (投入)';
+                    typeColor = 'var(--accent-gold)';
+                    amountDisplay = `<span style="color:var(--accent-gold); font-weight:bold;">-$${total.toLocaleString()}</span> <span style="font-size:11px; color:var(--text-muted);">(@$${(record.unitPrice||0).toLocaleString()} × ${record.qty||1})</span>`;
+                } else if (record.type === 'sell') {
+                    const cost = (record.unitCost !== undefined) 
+                        ? (record.unitCost * (record.qty || 1)) 
+                        : (record.originalCost || 0);
+                    const rev = (record.unitPrice !== undefined && record.unitCost !== undefined) 
+                        ? (record.unitPrice * (record.qty || 1)) 
+                        : (record.totalRevenue || 0);
+                    const profit = rev - cost;
+                    
+                    if (record.isSupplyPureIncome) {
+                        typeLabel = '📦 物資變現';
+                        typeColor = 'var(--accent-purple)';
+                        amountDisplay = `<span style="color:var(--accent-purple); font-weight:bold;">+$${rev.toLocaleString()}</span>`;
+                    } else {
+                        const isWin = profit >= 0;
+                        typeLabel = isWin ? '賣出 (獲利)' : '賣出 (虧損)';
+                        typeColor = isWin ? 'var(--accent-green)' : 'var(--accent-red)';
+                        const profitText = isWin ? `+${profit.toLocaleString()}` : `-${Math.abs(profit).toLocaleString()}`;
+                        amountDisplay = `<strong style="color:${typeColor};">+$${rev.toLocaleString()}</strong> <span style="font-size:11px; color:${typeColor};">(${profitText})</span>`;
+                    }
+                } else {
+                    const total = (record.unitPrice || 0) * (record.qty || 1);
+                    typeLabel = '公務花費';
+                    typeColor = 'var(--accent-blue)';
+                    amountDisplay = `<span style="color:var(--accent-red); font-weight:bold;">-$${total.toLocaleString()}</span>`;
+                }
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${record.date}</td>
+                    <td style="color:${typeColor}; font-weight:bold;">${typeLabel}</td>
+                    <td style="color:var(--text-main);">${record.item}</td>
+                    <td>${amountDisplay}</td>
+                    <td>
+                        <button type="button" class="btn-secondary" style="padding: 2px 6px; font-size: 11px;" onclick="openEditInvestModal(${index})">編輯</button>
+                        <button type="button" class="btn-del" style="padding: 2px 6px; font-size: 11px;" onclick="deleteInvestRecord(${index})">刪除</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function openEditInvestModal(index) {
+            const record = investmentHistory[index];
+            if (!record) return;
+
+            document.getElementById('editInvestIndex').value = index;
+            document.getElementById('editInvestDate').value = record.date || '';
+            document.getElementById('editInvestType').value = record.type || 'buy';
+            document.getElementById('editInvestItem').value = record.item || '';
+            
+            if (record.type === 'sell') {
+                const qty = record.qty || 1;
+                document.getElementById('editSellUnitCost').value = (record.unitCost !== undefined) ? record.unitCost : (record.originalCost ? Math.round(record.originalCost / qty) : 0);
+                document.getElementById('editSellUnitPrice').value = (record.unitPrice !== undefined) ? record.unitPrice : (record.totalRevenue ? Math.round(record.totalRevenue / qty) : 0);
+                document.getElementById('editSellQty').value = qty;
+            } else {
+                document.getElementById('editInvestUnitPrice').value = record.unitPrice || 0;
+                document.getElementById('editInvestQty').value = record.qty || 1;
+            }
+
+            document.getElementById('editInvestProfitNote').value = record.profitNote === '-' ? '' : (record.profitNote || '');
+
+            toggleEditInvestFields();
+            document.getElementById('editInvestModal').style.display = 'flex';
+        }
+
+        function toggleEditInvestFields() {
+            const type = document.getElementById('editInvestType').value;
+            const fieldBuy = document.getElementById('editFieldBuyExpense');
+            const fieldSell = document.getElementById('editFieldSellProfit');
+            const labelPrice = document.getElementById('editLabelUnitPrice');
+
+            if (type === 'sell') {
+                fieldBuy.style.display = 'none';
+                fieldSell.style.display = 'block';
+            } else {
+                fieldBuy.style.display = 'flex';
+                fieldSell.style.display = 'none';
+                labelPrice.innerText = (type === 'expense') ? "花費單價 ($)" : "買進單價 ($)";
+            }
+        }
+
+        function saveEditedInvestRecord() {
+            const index = parseInt(document.getElementById('editInvestIndex').value);
+            if (isNaN(index) || !investmentHistory[index]) return;
+
+            const date = document.getElementById('editInvestDate').value;
+            const type = document.getElementById('editInvestType').value;
+            const item = document.getElementById('editInvestItem').value.trim();
+            const profitNote = document.getElementById('editInvestProfitNote').value.trim();
+
+            if (!item) {
+                alert("請填寫標的名稱！");
+                return;
+            }
+
+            let record = investmentHistory[index];
+            record.date = date;
+            record.type = type;
+            record.item = item;
+            record.profitNote = profitNote || '-';
+
+            if (type === 'sell') {
+                record.unitCost = parseFloat(document.getElementById('editSellUnitCost').value) || 0;
+                record.unitPrice = parseFloat(document.getElementById('editSellUnitPrice').value) || 0;
+                record.qty = parseFloat(document.getElementById('editSellQty').value) || 1;
+                delete record.originalCost;
+                delete record.totalRevenue;
+            } else {
+                record.unitPrice = parseFloat(document.getElementById('editInvestUnitPrice').value) || 0;
+                record.qty = parseFloat(document.getElementById('editInvestQty').value) || 1;
+                delete record.unitCost;
+                delete record.originalCost;
+                delete record.totalRevenue;
+            }
+
+            localStorage.setItem('heaven_investment_history', JSON.stringify(investmentHistory));
+
+            closeEditInvestModal();
+            renderInvestmentsList();
+            autoCalculate();
+            syncAllToCloud();
+            alert("投資交易已修改並同步！");
+        }
+
+        function closeEditInvestModal() {
+            document.getElementById('editInvestModal').style.display = 'none';
+        }
+
+        function deleteInvestRecord(index) {
+            if (confirm("確定要刪除這筆交易紀錄嗎？（公積金資產池將精確重算）")) {
+                investmentHistory.splice(index, 1);
+                localStorage.setItem('heaven_investment_history', JSON.stringify(investmentHistory));
+                renderInvestmentsList();
+                autoCalculate();
+                syncAllToCloud();
+            }
+        }
+
+        function clearAllInvestments() {
+            if (confirm("確定要清空所有投資交易紀錄嗎？")) {
+                investmentHistory = [];
+                localStorage.removeItem('heaven_investment_history');
+                renderInvestmentsList();
+                autoCalculate();
+                syncAllToCloud();
+            }
+        }
+
+        /* ---------------- 公會倉庫物資邏輯 ---------------- */
+        function addSupplyRecord() {
+            const date = document.getElementById('supplyDate').value;
+            const item = document.getElementById('supplyItem').value.trim();
+            const provider = document.getElementById('supplyProvider').value.trim();
+            const note = document.getElementById('supplyNote').value.trim();
+
+            if (!item || !provider) {
+                alert("請填寫品項名稱與提供者！");
+                return;
+            }
+
+            const record = {
+                id: Date.now(),
+                date: date,
+                item: item,
+                provider: provider,
+                note: note || '-',
+                status: 'in_stock'
+            };
+
+            suppliesHistory.push(record);
+            localStorage.setItem('heaven_supplies_history', JSON.stringify(suppliesHistory));
+
+            document.getElementById('supplyItem').value = '';
+            document.getElementById('supplyProvider').value = '';
+            document.getElementById('supplyNote').value = '';
+
+            renderSuppliesList();
+            syncAllToCloud();
+            alert("物資已存入盟倉並同步！");
+        }
+
+        function renderSuppliesList() {
+            const tbody = document.getElementById('supplyListTable');
+            tbody.innerHTML = '';
+
+            if (suppliesHistory.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="empty-tip">目前無公會倉庫物資</td></tr>`;
+                return;
+            }
+
+            let sortedSupplies = suppliesHistory.map((item, originalIndex) => ({ ...item, originalIndex }));
+            sortedSupplies.sort((a, b) => {
+                const aSold = a.status === 'sold' ? 1 : 0;
+                const bSold = b.status === 'sold' ? 1 : 0;
+                return bSold - aSold;
+            });
+
+            sortedSupplies.forEach((record) => {
+                const origIdx = record.originalIndex;
+                const tr = document.createElement('tr');
+                const isSold = record.status === 'sold';
+                const isUsed = record.status === 'used';
+
+                let statusSelectHtml = `
+                    <select style="padding: 3px 6px; font-size: 11px; margin: 0;" onchange="handleSupplyStatusChange(${origIdx}, this.value)">
+                        <option value="in_stock" ${record.status==='in_stock'?'selected':''}>🟢 在庫</option>
+                        <option value="used" ${isUsed?'selected':''}>🟡 自用/發放</option>
+                        <option value="sold" ${isSold?'selected':''}>🔴 已賣出</option>
+                    </select>
+                `;
+
+                let actionBtnHtml = '';
+                if (isSold) {
+                    actionBtnHtml = `<span style="font-size: 11px; color: var(--accent-purple); margin-right: 4px;">已變現</span> `;
+                }
+
+                tr.innerHTML = `
+                    <td class="${isSold ? 'item-sold-text' : ''}">
+                        <strong style="color:${isSold ? 'var(--text-muted)' : 'var(--accent-gold)'};">${record.item}</strong>
+                        <div style="font-size:11px; color:var(--text-muted);">(${record.provider})</div>
+                    </td>
+                    <td>${statusSelectHtml}</td>
+                    <td style="font-size: 11px; color: var(--text-muted);">${record.note}</td>
+                    <td>
+                        ${actionBtnHtml}
+                        <button type="button" class="btn-secondary" style="padding: 2px 6px; font-size: 11px;" onclick="openEditSupplyModal(${origIdx})">編輯</button>
+                        <button type="button" class="btn-del" style="padding: 2px 6px; font-size: 11px;" onclick="deleteSupplyRecord(${origIdx})">刪除</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function openEditSupplyModal(index) {
+            const item = suppliesHistory[index];
+            if (!item) return;
+
+            document.getElementById('editSupplyIndex').value = index;
+            document.getElementById('editSupplyDate').value = item.date || '';
+            document.getElementById('editSupplyProvider').value = item.provider || '';
+            document.getElementById('editSupplyItemName').value = item.item || '';
+            document.getElementById('editSupplyNote').value = item.note === '-' ? '' : (item.note || '');
+
+            document.getElementById('editSupplyModal').style.display = 'flex';
+        }
+
+        function saveEditedSupplyRecord() {
+            const index = parseInt(document.getElementById('editSupplyIndex').value);
+            if (isNaN(index) || !suppliesHistory[index]) return;
+
+            const date = document.getElementById('editSupplyDate').value;
+            const provider = document.getElementById('editSupplyProvider').value.trim();
+            const item = document.getElementById('editSupplyItemName').value.trim();
+            const note = document.getElementById('editSupplyNote').value.trim();
+
+            if (!item || !provider) {
+                alert("品項名稱與提供者不可為空！");
+                return;
+            }
+
+            suppliesHistory[index].date = date;
+            suppliesHistory[index].provider = provider;
+            suppliesHistory[index].item = item;
+            suppliesHistory[index].note = note || '-';
+
+            localStorage.setItem('heaven_supplies_history', JSON.stringify(suppliesHistory));
+
+            closeEditSupplyModal();
+            renderSuppliesList();
+            syncAllToCloud();
+            alert("公會倉庫物資已成功更新！");
+        }
+
+        function closeEditSupplyModal() {
+            document.getElementById('editSupplyModal').style.display = 'none';
+        }
+
+        function handleSupplyStatusChange(index, newStatus) {
+            const item = suppliesHistory[index];
+            if (!item) return;
+
+            if (newStatus === 'sold') {
+                document.getElementById('sellSupplyIndex').value = index;
+                document.getElementById('sellSupplyItemName').value = item.item;
+                document.getElementById('modalSupplyRevenue').value = '';
+                document.getElementById('sellNoteInput').value = `盟倉售出 (${item.provider} 提供)`;
+                calcSupplyModalProfit();
+                document.getElementById('supplySellModal').style.display = 'flex';
+            } else {
+                item.status = newStatus;
+                localStorage.setItem('heaven_supplies_history', JSON.stringify(suppliesHistory));
+                renderSuppliesList();
+                syncAllToCloud();
+            }
+        }
+
+        function calcSupplyModalProfit() {
+            const rev = parseFloat(document.getElementById('modalSupplyRevenue').value) || 0;
+            const display = document.getElementById('modalSupplyProfitDisplay');
+            display.innerText = `計入物資變現 +$${rev.toLocaleString()}`;
+        }
+
+        function confirmSupplySell() {
+            const index = parseInt(document.getElementById('sellSupplyIndex').value);
+            const revenue = parseFloat(document.getElementById('modalSupplyRevenue').value) || 0;
+            const sellNote = document.getElementById('sellNoteInput').value.trim();
+
+            if (revenue <= 0) {
+                alert("請填寫有效的賣出實收金額！");
+                return;
+            }
+
+            const item = suppliesHistory[index];
+            if (!item) return;
+
+            item.status = 'sold';
+            item.note = `${item.note} [已售: $${revenue.toLocaleString()} (計入物資變現)]`;
+            localStorage.setItem('heaven_supplies_history', JSON.stringify(suppliesHistory));
+
+            const investRecord = {
+                id: Date.now(),
+                date: getLocalDateString(),
+                type: 'sell',
+                item: `[倉庫售出] ${item.item}`,
+                unitCost: 0,
+                unitPrice: revenue,
+                qty: 1,
+                isSupplyPureIncome: true,
+                profitNote: sellNote || `原提供者: ${item.provider}`
+            };
+            investmentHistory.push(investRecord);
+            localStorage.setItem('heaven_investment_history', JSON.stringify(investmentHistory));
+
+            closeSupplySellModal();
+            renderSuppliesList();
+            renderInvestmentsList();
+            autoCalculate();
+            syncAllToCloud();
+            alert("物資已標記為賣出，金額已全額轉入【物資變現】並同步！");
+        }
+
+        function closeSupplySellModal() {
+            document.getElementById('supplySellModal').style.display = 'none';
+            renderSuppliesList();
+        }
+
+        function deleteSupplyRecord(index) {
+            if (confirm("確定要刪除此筆物資紀錄嗎？")) {
+                suppliesHistory.splice(index, 1);
+                localStorage.setItem('heaven_supplies_history', JSON.stringify(suppliesHistory));
+                renderSuppliesList();
+                syncAllToCloud();
+            }
+        }
+
+        function clearAllSupplies() {
+            if (confirm("確定要清空所有倉庫物資紀錄嗎？")) {
+                suppliesHistory = [];
+                localStorage.removeItem('heaven_supplies_history');
+                renderSuppliesList();
+                syncAllToCloud();
+            }
+        }
+    </script>
+</body>
+</html>
