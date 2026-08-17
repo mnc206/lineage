@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>團練結算與公會管理系統</title>
 
-    <!-- Firebase SDK (雲端即時同步核心) -->
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
@@ -558,9 +558,12 @@
 
     <h2>⚔️ 團練結算與公會管理系統</h2>
 
-    <!-- 頂部即時連線燈號 -->
+    <!-- 頂部即時連線與資料保全功能區 -->
     <div class="sync-status-bar">
         <span id="cloudStatusBadge" class="sync-badge">🟢 雲端同步就緒</span>
+        <button type="button" class="btn-secondary" style="padding: 3px 8px; font-size: 11px;" onclick="exportLocalJsonBackup()">💾 下載備份檔</button>
+        <button type="button" class="btn-secondary" style="padding: 3px 8px; font-size: 11px;" onclick="document.getElementById('fileBackupInput').click()">📂 上傳還原</button>
+        <input type="file" id="fileBackupInput" accept=".json" style="display:none;" onchange="importLocalJsonBackup(event)">
     </div>
 
     <!-- 切換 Tab -->
@@ -1138,7 +1141,6 @@
                     autoCalculate();
                     updateCloudBadge('synced');
                 } else {
-                    // 若雲端為空，自動將預設資料上傳至雲端
                     syncAllToCloud();
                 }
             });
@@ -1158,6 +1160,64 @@
             docRef.set(payload).then(() => {
                 updateCloudBadge('synced');
             });
+        }
+
+        /* ---------------- 資料保全：本地檔案下載與還原 ---------------- */
+        function exportLocalJsonBackup() {
+            const dataObj = {
+                commonMembers: commonMembers,
+                commonItems: commonItems,
+                settlementHistory: settlementHistory,
+                suppliesHistory: suppliesHistory,
+                investmentHistory: investmentHistory,
+                exportDate: getLocalDateString()
+            };
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataObj, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `公會資料備份_${getLocalDateString()}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function importLocalJsonBackup(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    if (parsed.commonMembers) commonMembers = parsed.commonMembers;
+                    if (parsed.commonItems) commonItems = parsed.commonItems;
+                    if (parsed.settlementHistory) settlementHistory = parsed.settlementHistory;
+                    if (parsed.suppliesHistory) suppliesHistory = parsed.suppliesHistory;
+                    if (parsed.investmentHistory) investmentHistory = parsed.investmentHistory;
+
+                    localStorage.setItem('heaven_common_members', JSON.stringify(commonMembers));
+                    localStorage.setItem('heaven_common_items', JSON.stringify(commonItems));
+                    localStorage.setItem('heaven_settlement_history', JSON.stringify(settlementHistory));
+                    localStorage.setItem('heaven_supplies_history', JSON.stringify(suppliesHistory));
+                    localStorage.setItem('heaven_investment_history', JSON.stringify(investmentHistory));
+
+                    renderMemberSelect();
+                    renderItemDatalist();
+                    renderHistoryList();
+                    renderPendingOverview();
+                    renderSuppliesList();
+                    renderInvestmentsList();
+                    autoCalculate();
+
+                    syncAllToCloud();
+                    alert("備份檔案已成功還原，並已同步更新至雲端！");
+                } catch (err) {
+                    alert("備份檔案解析失敗，請確認是否為正確的 JSON 備份檔！");
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = ''; // 清空檔案選擇器
         }
 
         function switchTab(tabId) {
